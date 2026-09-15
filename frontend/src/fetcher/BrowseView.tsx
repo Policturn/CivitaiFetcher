@@ -7,7 +7,7 @@ import { Select, SelectTrigger, SelectValue, SelectPopup, SelectItem } from '@/c
 import { Dialog, DialogPopup, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
-import { api, inputCls, useFeEvent, BASE_MODELS, SORTS, PERIODS, fmtSize } from './api';
+import { api, inputCls, useFeEvent, BASE_MODELS, SORTS, PERIODS, fmtSize, fileUrl, thumbUrl } from './api';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
