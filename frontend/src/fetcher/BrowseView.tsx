@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, memo, useCallback, useEffect, useRef, useState } from 'react';
 import DOMPurify from 'dompurify';
 import { ChevronDown, Download, Loader2, Search, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
