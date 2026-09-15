@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="zh-CN" class="dark">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>非猫 Civitai 信息补全器</title>
+    <!-- 与主应用同一套 MiSans 子集字体（构建后手工拷贝 public/fonts/misans 到输出目录） -->
+    <link rel="stylesheet" href="./fonts/misans/misans.css" />
+</head>
+<body>
+    <div id="root"></div>
+    <!-- Python 侧事件入口(pywebview evaluate_js 调用) -->
+    <script>window.__fePush = function (d) { window.dispatchEvent(new CustomEvent('fe:event', { detail: d })); };</script>
+    <script type="module" src="/src/fetcher/main.tsx"></script>
+</body>
+</html>

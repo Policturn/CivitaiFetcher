@@ -1,0 +1,25 @@
+# 构建产物(可由源码重建)
+dist/
+build/
+ui-dist/
+*.spec
+
+# 运行时数据(含 API Key 与本机路径,绝不入库)
+gui_settings.json
+hash_cache.json
+download_history.json
+category_folders.json
+reorganize_undo.json
+last_scan_report.json
+thumb_cache/
+json_backup_*/
+
+# 演示资产(体积大;由采集脚本重建,demo_data 结构见 README)
+demo-assets/
+
+# Python
+__pycache__/
+*.pyc
+
+# 日志
+*.log
