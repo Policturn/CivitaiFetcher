@@ -34,8 +34,7 @@
 
 | 文件 | 说明 |
 |---|---|
-| `CivitaiFetcher.exe` | 正式版,联网使用 |
-| `CivitaiFetcherDemo.exe` | 演示版,内置离线数据(内容已过滤),无网环境可完整体验全部功能 |
+| `CivitaiFetcher.exe` | 主程序,联网使用 |
 
 单文件 exe,免安装;设置 / 缓存 / 下载历史都存在 exe 同目录,不写注册表。
 
