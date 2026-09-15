@@ -315,7 +315,7 @@ def _save_settings(opts):
     if opts.get("api_source") in ("com", "red"):
         old["api_source"] = opts["api_source"]
     if isinstance(opts.get("browse"), dict):
-        old["browse"] = opts["browse"]
+        old.setdefault("browse", {}).update(opts["browse"])
     for key in ("types", "options"):
         if key in opts:
             old[key] = opts[key]

@@ -125,6 +125,7 @@ export default function App() {
                 a.get_initial().then((s: any) => {
                     if (s) {
                         setDemo(!!s.demo);
+                        if (s?.browse?.view) setView(String(s.browse.view));
                         setWebuiRoot(s.webui_root ?? webuiRoot);
                         setProxy(s.proxy ?? '');
                         setApiKey(s.api_key ?? '');
@@ -148,6 +149,13 @@ export default function App() {
     useEffect(() => {
         logBox.current?.scrollTo({ top: logBox.current.scrollHeight });
     }, [lines]);
+
+    // 页签记忆:切页防抖保存,重开恢复
+    useEffect(() => {
+        if (!ready || !api()) return;
+        const t = setTimeout(() => { api().save_browse?.({ view }); }, 500);
+        return () => clearTimeout(t);
+    }, [view, ready]);
 
     // 登录状态:有 Key 时验证一次
     useEffect(() => {

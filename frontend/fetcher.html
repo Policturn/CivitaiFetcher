@@ -11,7 +11,22 @@
     <div id="root"></div>
     <!-- Python 侧事件入口(pywebview evaluate_js 调用) -->
     <script>window.__fePush = function (d) { window.dispatchEvent(new CustomEvent('fe:event', { detail: d })); };
-    window.__fePushBatch = function (arr) { for (const d of arr) window.__fePush(d); };</script>
+    window.__fePushBatch = function (arr) { for (const d of arr) window.__fePush(d); };
+    // 常驻错误条:任何未捕获错误/异常 Promise 显示在页面顶部,便于现场定位
+    (function () {
+        function show(tag, msg) {
+            var d = document.getElementById('CF_ERRBAR');
+            if (!d) {
+                d = document.createElement('div'); d.id = 'CF_ERRBAR';
+                d.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#b91c1c;color:#fff;font:12px/1.5 Consolas,monospace;padding:5px 10px;white-space:pre-wrap;word-break:break-all;';
+                (document.body || document.documentElement).appendChild(d);
+            }
+            d.textContent += (d.textContent ? '
+' : '') + tag + ' ' + msg;
+        }
+        window.addEventListener('error', function (e) { show('ERROR:', e.message + ' @' + String(e.filename || '').split('/').pop() + ':' + e.lineno); });
+        window.addEventListener('unhandledrejection', function (e) { show('REJECT:', String(e.reason).slice(0, 300)); });
+    })();</script>
     <script type="module" src="/src/fetcher/main.tsx"></script>
 </body>
 </html>
