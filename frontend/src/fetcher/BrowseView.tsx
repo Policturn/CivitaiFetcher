@@ -89,8 +89,22 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
             .catch(() => {});
     }, [webuiRoot]);
     useEffect(() => { refreshLocalIdx(); }, [refreshLocalIdx]);
-    // 下载完成 → 立刻刷新索引,已下载卡片实时点亮
-    useFeEvent((e) => { if (e.type === 'downloads' && (e.reason === 'done' || e.reason === 'failed')) refreshLocalIdx(true); });
+    // 下载完成 → 增量并入索引(不做全库重扫,过载源头之一)
+    useFeEvent((e) => {
+        if (e.type !== 'downloads' || (e.reason !== 'done' && e.reason !== 'failed')) return;
+        const done = [...(e.state?.done || []), e.state?.active].filter(Boolean);
+        const add = done.filter((t: any) => t.modelId || t.versionId);
+        if (!add.length) return;
+        setLocalIdx((prev) => {
+            if (!prev) return prev;
+            const mIds = new Set(prev.modelIds), vIds = new Set(prev.versionIds);
+            for (const t of add) {
+                if (t.modelId) mIds.add(String(t.modelId));
+                if (t.versionId) vIds.add(String(t.versionId));
+            }
+            return { modelIds: mIds, versionIds: vIds };
+        });
+    });
     // 后台补齐的缩略图 → 增量点亮对应卡片
     useFeEvent((e) => { if (e.type === 'thumbs_ready' && e.map) setThumbMap((prev) => ({ ...prev, ...e.map })); });
 
@@ -155,15 +169,20 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
         return () => clearTimeout(t);
     }, [load]);
 
+    const loadingRef = useRef(false);
+    useEffect(() => { loadingRef.current = loading; }, [loading]);
     useEffect(() => {
         const el = sentinel.current;
         if (!el) return;
         const ob = new IntersectionObserver((entries) => {
-            if (entries[0].isIntersecting && cursor && !loading) load(cursor);
+            if (entries[0].isIntersecting && cursor && !loadingRef.current) {
+                loadingRef.current = true;  // 防重入:setState 异步,快速滚动会重复触发
+                load(cursor);
+            }
         }, { rootMargin: '600px' });
         ob.observe(el);
         return () => ob.disconnect();
-    }, [cursor, loading, load]);
+    }, [cursor, load]);
 
     const openDetail = async (id: number) => {
         setDetail({ id, loading: true });
@@ -374,67 +393,16 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
                         <div className="mb-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-400">{error}</div>
                     )}
                     <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(230px,1fr))]">
-                        {shown.map((it) => {
-                            const downloaded = isDownloaded(it);
-                            const firstUrl = it?.version?.images?.[0]?.url as string | undefined;
-                            const local = firstUrl ? thumbMap[firstUrl] : undefined;
-                            // 只用本地缓存,避免远程→本地二次刷新;未就绪时显示占位动画
-                            const src = local ? `file:///${local.replace(/\\/g, '/')}` : '';
-                            const onImgError = (e: any) => {
-                                // 本地缓存读取失败 → 回退远程一次
-                                const img = e.currentTarget as HTMLImageElement;
-                                if (!img.dataset.fallback && firstUrl) {
-                                    img.dataset.fallback = '1';
-                                    img.src = firstUrl;
-                                }
-                            };
-                            return (
-                                <div
-                                    key={`${it.id}-${it.version?.id}`}
-                                    role="button"
-                                    tabIndex={0}
-                                    onClick={() => openDetail(it.id)}
-                                    onKeyDown={(e) => { if (e.key === 'Enter') openDetail(it.id); }}
-                                    className={`group relative cursor-pointer overflow-hidden rounded-lg border border-border bg-card text-left outline-none transition-all hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring ${downloaded ? 'opacity-55 saturate-[.6] hover:opacity-100 hover:saturate-100' : ''}`}
-                                >
-                                    <div className="relative aspect-[4/5] w-full overflow-hidden bg-input/40">
-                                        {src ? (
-                                            <img src={src} alt="" loading="lazy" className="size-full object-cover" onError={onImgError} />
-                                        ) : firstUrl ? (
-                                            <div className="flex size-full items-center justify-center animate-pulse bg-card">
-                                                <Loader2 className="size-4 animate-spin text-muted-foreground" />
-                                            </div>
-                                        ) : (
-                                            <div className="flex size-full items-center justify-center text-xs text-muted-foreground">无预览图</div>
-                                        )}
-                                        {downloaded && (
-                                            <span className="absolute left-1.5 top-1.5 rounded bg-emerald-500/90 px-1.5 py-0.5 text-[10px] font-medium text-emerald-950">已下载</span>
-                                        )}
-                                        {it.nsfw && (
-                                            <span className="absolute right-1.5 top-1.5 rounded bg-red-500/85 px-1.5 py-0.5 text-[10px] font-medium text-white">NSFW</span>
-                                        )}
-                                        {/* 悬浮下载:一键下载卡片对应的版本 */}
-                                        <button
-                                            title="下载此版本"
-                                            onClick={(e) => { e.stopPropagation(); quickDownload(it); }}
-                                            className="absolute bottom-1.5 right-1.5 z-10 hidden size-8 cursor-pointer items-center justify-center rounded-md bg-emerald-500 text-emerald-950 shadow-md transition-colors hover:bg-emerald-400 group-hover:flex"
-                                        >
-                                            <Download className="size-4" />
-                                        </button>
-                                    </div>
-                                    <div className="p-2.5">
-                                        <div className="truncate text-sm font-medium" title={it.name}>{it.name}</div>
-                                        <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-                                            {it.version?.baseModel && (
-                                                <span className="rounded bg-secondary px-1.5 py-0.5">{it.version.baseModel}</span>
-                                            )}
-                                            <span className="ml-auto">{(it.downloads ?? 0).toLocaleString()}↓</span>
-                                        </div>
-                                        <div className="mt-1 truncate text-xs text-muted-foreground">@{it.creator}</div>
-                                    </div>
-                                </div>
-                            );
-                        })}
+                        {shown.map((it: any) => (
+                            <ThumbCard
+                                key={`${it.id}-${it.version?.id}`}
+                                it={it}
+                                downloaded={isDownloaded(it)}
+                                localPath={it?.version?.images?.[0]?.url ? thumbMap[it.version.images[0].url] : undefined}
+                                onOpen={() => openDetail(it.id)}
+                                onQuickDownload={() => quickDownload(it)}
+                            />
+                        ))}
                         {loading && Array.from({ length: 8 }).map((_, i) => (
                             <div key={`sk${i}`} className="overflow-hidden rounded-lg border border-border bg-card">
                                 <div className="aspect-[4/5] w-full animate-pulse bg-input/40" />
@@ -743,3 +711,66 @@ function DetailDialog(props: {
         </Dialog>
     );
 }
+
+// ---------------------------------------------------------------- 卡片(memo:增量更新不重渲整列表)
+
+const ThumbCard = memo(function ThumbCard(props: {
+    it: any; downloaded: boolean; localPath?: string;
+    onOpen: () => void; onQuickDownload: () => void;
+}) {
+    const { it, downloaded, localPath, onOpen, onQuickDownload } = props;
+    const firstUrl = it?.version?.images?.[0]?.url as string | undefined;
+    const src = localPath ? fileUrl(localPath) : '';
+    const onImgError = (e: any) => {
+        // 本地读取失败 → 回退 450 小图(绝不直连原图,几 MB 的解码会压垮机器)
+        const img = e.currentTarget as HTMLImageElement;
+        if (!img.dataset.fallback && firstUrl) {
+            img.dataset.fallback = '1';
+            img.src = thumbUrl(firstUrl);
+        }
+    };
+    return (
+        <div
+            role="button"
+            tabIndex={0}
+            onClick={onOpen}
+            onKeyDown={(e) => { if (e.key === 'Enter') onOpen(); }}
+            className={`group relative cursor-pointer overflow-hidden rounded-lg border border-border bg-card text-left outline-none transition-opacity focus-visible:ring-2 focus-visible:ring-ring ${downloaded ? 'opacity-55 hover:opacity-100' : ''}`}
+        >
+            <div className="relative aspect-[4/5] w-full overflow-hidden bg-input/40">
+                {src ? (
+                    <img src={src} alt="" loading="lazy" decoding="async" className="size-full object-cover" onError={onImgError} />
+                ) : firstUrl ? (
+                    <div className="flex size-full items-center justify-center bg-card">
+                        <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                    </div>
+                ) : (
+                    <div className="flex size-full items-center justify-center text-xs text-muted-foreground">无预览图</div>
+                )}
+                {downloaded && (
+                    <span className="absolute left-1.5 top-1.5 rounded bg-emerald-500/90 px-1.5 py-0.5 text-[10px] font-medium text-emerald-950">已下载</span>
+                )}
+                {it.nsfw && (
+                    <span className="absolute right-1.5 top-1.5 rounded bg-red-500/85 px-1.5 py-0.5 text-[10px] font-medium text-white">NSFW</span>
+                )}
+                <button
+                    title="下载此版本"
+                    onClick={(e) => { e.stopPropagation(); onQuickDownload(); }}
+                    className="absolute bottom-1.5 right-1.5 z-10 hidden size-8 cursor-pointer items-center justify-center rounded-md bg-emerald-500 text-emerald-950 shadow-md transition-colors hover:bg-emerald-400 group-hover:flex"
+                >
+                    <Download className="size-4" />
+                </button>
+            </div>
+            <div className="p-2.5">
+                <div className="truncate text-sm font-medium" title={it.name}>{it.name}</div>
+                <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                    {it.version?.baseModel && (
+                        <span className="rounded bg-secondary px-1.5 py-0.5">{it.version.baseModel}</span>
+                    )}
+                    <span className="ml-auto">{(it.downloads ?? 0).toLocaleString()}↓</span>
+                </div>
+                <div className="mt-1 truncate text-xs text-muted-foreground">@{it.creator}</div>
+            </div>
+        </div>
+    );
+});

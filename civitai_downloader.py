@@ -87,9 +87,9 @@ def _snapshot():
 
 
 def _public_task(t):
-    keys = ("id", "modelName", "versionName", "type", "targetDir", "status",
-            "percent", "speed", "downloadedMB", "totalMB", "error", "category",
-            "paused")
+    keys = ("id", "modelId", "versionId", "modelName", "versionName", "type",
+            "targetDir", "status", "percent", "speed", "downloadedMB", "totalMB",
+            "error", "category", "paused")
     return {k: t.get(k) for k in keys}
 
 
@@ -416,7 +416,7 @@ def _download_one(task, ver, file_info, target_dir):
             f.write(chunk)
             got += len(chunk)
             now = time.time()
-            if now - last_emit > 0.2:
+            if now - last_emit > 0.35:
                 done_bytes = offset + got
                 speed = got / max(now - start, 0.1)
                 task["percent"] = int(done_bytes * 100 / total_size) if total_size else 0

@@ -10,7 +10,8 @@
 <body>
     <div id="root"></div>
     <!-- Python 侧事件入口(pywebview evaluate_js 调用) -->
-    <script>window.__fePush = function (d) { window.dispatchEvent(new CustomEvent('fe:event', { detail: d })); };</script>
+    <script>window.__fePush = function (d) { window.dispatchEvent(new CustomEvent('fe:event', { detail: d })); };
+    window.__fePushBatch = function (arr) { for (const d of arr) window.__fePush(d); };</script>
     <script type="module" src="/src/fetcher/main.tsx"></script>
 </body>
 </html>

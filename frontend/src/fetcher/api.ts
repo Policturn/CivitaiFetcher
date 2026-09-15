@@ -45,6 +45,17 @@ export const PERIODS: Array<[string, string]> = [
     ['Custom', '自定义…'],
 ];
 
+/** 本地路径 → 合法 file:/// URL(中文/空格必须编码,否则 WebView2 加载失败回退远程大图) */
+export function fileUrl(p: string): string {
+    return 'file:///' + encodeURI(p.replace(/\\/g, '/'));
+}
+
+/** 原图 URL → CDN 小图(回退时也别碰原图,几十 MB 会压垮解码) */
+export function thumbUrl(url: string, width = 450): string {
+    if (!url) return url;
+    return url.replace(/original=true/, 'width=' + width).replace(/width=\d+/, 'width=' + width);
+}
+
 export function fmtSize(sizeKB?: number): string {
     if (!sizeKB) return '—';
     if (sizeKB > 1048576) return (sizeKB / 1048576).toFixed(2) + ' GB';

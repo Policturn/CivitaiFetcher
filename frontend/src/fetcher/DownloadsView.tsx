@@ -20,7 +20,13 @@ export default function DownloadsView() {
 
     useFeEvent((e) => {
         if (e.type === 'downloads') setState(e.state);
-        else if (e.type === 'download_progress') refresh();
+        else if (e.type === 'download_progress' && e.task) {
+            // 本地合并进度,不再桥查询(每次桥调用都是跨进程开销)
+            setState((prev: any) => prev && {
+                ...prev,
+                active: prev.active?.id === e.task.id ? e.task : prev.active,
+            });
+        }
     });
 
     const cancel = async (id: string) => { await api().cancel_download(id); refresh(); };

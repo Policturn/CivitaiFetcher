@@ -112,11 +112,11 @@ def _pump():
             except queue.Empty:
                 break
         window = _STATE["window"]
-        for d in batch:
-            try:
-                window.evaluate_js(f"window.__fePush({json.dumps(d, ensure_ascii=False)})")
-            except Exception:
-                time.sleep(0.2)
+        try:
+            payload = json.dumps(batch, ensure_ascii=False)
+            window.evaluate_js(f"window.__fePushBatch({payload})")
+        except Exception:
+            time.sleep(0.2)
 
 
 class Api:
