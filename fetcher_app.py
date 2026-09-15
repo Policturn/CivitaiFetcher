@@ -196,6 +196,19 @@ class Api:
         _STATE["stop"] = True
         return True
 
+    def open_url(self, url):
+        """外链用系统浏览器打开(仅允许 civitai 域,防注入)"""
+        import webbrowser as _wb
+        if not isinstance(url, str) or not url.startswith("https://"):
+            return False
+        from urllib.parse import urlparse as _up
+        host = (_up(url).hostname or "").lower()
+        if not (host == "civitai.com" or host.endswith(".civitai.com")
+                or host == "civitai.red" or host.endswith(".civitai.red")):
+            return False
+        _wb.open(url)
+        return True
+
     def choose_folder(self):
         window = _STATE["window"]
         result = window.create_file_dialog(webview.FOLDER_DIALOG)

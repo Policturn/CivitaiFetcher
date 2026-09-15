@@ -90,6 +90,7 @@ export default function App() {
     const [view, setView] = useState('scan');
     const [user, setUser] = useState('');
     const [demo, setDemo] = useState(false);
+    const [apiSource, setApiSource] = useState('com');
     const demoAutoRan = useRef(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const logBox = useRef<HTMLDivElement>(null);
@@ -125,6 +126,7 @@ export default function App() {
                 a.get_initial().then((s: any) => {
                     if (s) {
                         setDemo(!!s.demo);
+                        if (s?.api_source) setApiSource(String(s.api_source));
                         if (s?.browse?.view) setView(String(s.browse.view));
                         setWebuiRoot(s.webui_root ?? webuiRoot);
                         setProxy(s.proxy ?? '');
@@ -365,7 +367,7 @@ export default function App() {
 
             <div className={cn('flex min-h-0 flex-1 flex-col', view !== 'browse' && 'hidden')}>
                 <BrowseView
-                    webuiRoot={webuiRoot} proxy={proxy} apiKey={apiKey}
+                    webuiRoot={webuiRoot} proxy={proxy} apiKey={apiKey} apiSource={apiSource}
                     onOpenDownloads={() => setView('downloads')}
                 />
             </div>

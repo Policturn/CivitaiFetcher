@@ -40,8 +40,8 @@ const LORA_SUB_TABS: Array<[string, string]> = [
     ['objects', '物品'],
 ];
 
-export default function BrowseView(props: { webuiRoot: string; proxy: string; apiKey: string; onOpenDownloads: () => void }) {
-    const { webuiRoot, proxy, apiKey, onOpenDownloads } = props;
+export default function BrowseView(props: { webuiRoot: string; proxy: string; apiKey: string; apiSource?: string; onOpenDownloads: () => void }) {
+    const { webuiRoot, proxy, apiKey, apiSource, onOpenDownloads } = props;
     // 页签与筛选
     const [typeTab, setTypeTab] = useState('all');
     const [query, setQuery] = useState('');
@@ -437,6 +437,7 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
                 versionIds={localIdx?.versionIds}
                 apiKey={apiKey}
                 proxy={proxy}
+                apiSource={apiSource}
                 onClose={() => setDetail(null)}
                 onDownload={(v) => setDlVersion(v)}
             />
@@ -572,10 +573,14 @@ function pickDefaultVersion(detail: any, baseModels: string[], query: string): n
 
 function DetailDialog(props: {
     detail: any; baseModels: string[]; query: string;
-    versionIds?: Set<string>; apiKey: string; proxy: string;
+    versionIds?: Set<string>; apiKey: string; proxy: string; apiSource?: string;
     onClose: () => void; onDownload: (v: any) => void;
 }) {
-    const { detail, baseModels, query, versionIds, apiKey, proxy, onClose, onDownload } = props;
+    const { detail, baseModels, query, versionIds, apiKey, proxy, apiSource, onClose, onDownload } = props;
+    const openCreator = () => {
+        const host = apiSource === 'red' ? 'civitai.red' : 'civitai.com';
+        api()?.open_url?.(`https://${host}/user/${encodeURIComponent(detail.creator)}`);
+    };
     const [sel, setSel] = useState(0);
     const [html, setHtml] = useState('');
     const [imgMap, setImgMap] = useState<Record<string, string>>({});
@@ -629,10 +634,16 @@ function DetailDialog(props: {
                     </div>
                 )}
                 {loaded && (
-                    <div className="flex max-h-[70vh] min-h-0 flex-col gap-3 text-sm">
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <div className="flex max-h-[70vh] min-h-0 flex-col gap-4 text-sm">
+                        <div className="flex flex-wrap items-center gap-2.5 text-xs text-muted-foreground">
                             <span className="rounded bg-secondary px-1.5 py-0.5">{detail.type}</span>
-                            <span>@{detail.creator}</span>
+                            <button
+                                onClick={openCreator}
+                                title="在浏览器打开作者主页"
+                                className="cursor-pointer rounded bg-secondary px-1.5 py-0.5 text-foreground underline decoration-border underline-offset-2 transition-colors hover:text-emerald-400 hover:decoration-emerald-400"
+                            >
+                                @{detail.creator} ↗
+                            </button>
                             <span>{(detail.downloads ?? 0).toLocaleString()} 下载</span>
                             <span>{(detail.thumbsUp ?? 0).toLocaleString()} 赞</span>
                             {(detail.tags || []).slice(0, 6).map((t: string) => (
@@ -640,7 +651,7 @@ function DetailDialog(props: {
                             ))}
                         </div>
                         {/* 版本方块行 */}
-                        <div className="flex gap-1.5 overflow-x-auto pb-1">
+                        <div className="flex gap-2 overflow-x-auto pb-1.5">
                             {versions.map((ver: any, i: number) => (
                                 <button
                                     key={ver.id}
@@ -661,14 +672,14 @@ function DetailDialog(props: {
                         </div>
                         {/* 选中版本内容 */}
                         {v && (
-                            <div className="flex min-h-0 flex-col gap-2.5 overflow-y-auto pr-1">
+                            <div className="flex min-h-0 flex-col gap-3 overflow-y-auto pr-1.5">
                                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                                     {v.baseModel && <span className="rounded bg-secondary px-1.5 py-0.5">{v.baseModel}</span>}
                                     {v.createdAt && <span>{v.createdAt}</span>}
                                     {v.trainedWords?.length > 0 && <span className="min-w-0 truncate">触发词: {v.trainedWords.join(', ')}</span>}
                                 </div>
                                 {v.images?.length > 0 && (
-                                    <div className="flex gap-2 overflow-x-auto pb-1">
+                                    <div className="flex gap-2.5 overflow-x-auto pb-1">
                                         {v.images.map((im: any) => (
                                             <img
                                                 key={im.url}
@@ -679,7 +690,7 @@ function DetailDialog(props: {
                                         ))}
                                     </div>
                                 )}
-                                <div className="flex flex-col gap-1">
+                                <div className="flex flex-col gap-1.5">
                                     {(v.files || []).map((f: any) => (
                                         <div key={f.name} className="flex items-center gap-2 rounded-md border border-border bg-card px-2 py-1 text-xs">
                                             <span className="rounded bg-secondary px-1.5 py-0.5 text-muted-foreground">{f.type}</span>
