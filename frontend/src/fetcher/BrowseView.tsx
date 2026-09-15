@@ -376,7 +376,15 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
                                 onChange={(e) => setCreatorInput(e.target.value)}
                                 onKeyDown={(e) => { if (e.key === 'Enter') setCreator(creatorInput.trim()); }}
                             />
-                            {creator && <div className="mt-1.5 text-xs text-muted-foreground">已选: @{creator}</div>}
+                            {creator && (
+                                <div className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                                    <span className="min-w-0 truncate">已选: @{creator}</span>
+                                    <button
+                                        onClick={() => { setCreator(''); setCreatorInput(''); }}
+                                        className="ml-auto shrink-0 cursor-pointer text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                                    >清除</button>
+                                </div>
+                            )}
                         </Section>
                         <Section id="nsfw" title="显示">
                             <label className="flex items-center justify-between text-xs">
@@ -440,6 +448,12 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
                 apiSource={apiSource}
                 onClose={() => setDetail(null)}
                 onDownload={(v) => setDlVersion(v)}
+                onBrowseCreator={(name) => {
+                    setCreator(name);
+                    setCreatorInput(name);
+                    setSidebarOpen(true);
+                    setDetail(null);
+                }}
             />
 
             {/* 下载确认框 */}
@@ -574,12 +588,12 @@ function pickDefaultVersion(detail: any, baseModels: string[], query: string): n
 function DetailDialog(props: {
     detail: any; baseModels: string[]; query: string;
     versionIds?: Set<string>; apiKey: string; proxy: string; apiSource?: string;
-    onClose: () => void; onDownload: (v: any) => void;
+    onClose: () => void; onDownload: (v: any) => void; onBrowseCreator: (name: string) => void;
 }) {
-    const { detail, baseModels, query, versionIds, apiKey, proxy, apiSource, onClose, onDownload } = props;
+    const { detail, baseModels, query, versionIds, apiKey, proxy, apiSource, onClose, onDownload, onBrowseCreator } = props;
     const openCreator = () => {
-        const host = apiSource === 'red' ? 'civitai.red' : 'civitai.com';
-        api()?.open_url?.(`https://${host}/user/${encodeURIComponent(detail.creator)}`);
+        // 应用内浏览该作者的模型(按作者目录挑模型/批量下载)
+        if (detail?.creator) onBrowseCreator(detail.creator);
     };
     const [sel, setSel] = useState(0);
     const [html, setHtml] = useState('');
