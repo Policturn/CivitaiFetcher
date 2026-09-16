@@ -358,8 +358,9 @@ def _save_settings(opts):
         # None/空串 = 解除绑定
         pf = {k: v for k, v in opts["pinned_folders"].items() if v}
         old["pinned_folders"] = pf
+    # types/options 只接受 dict(扫描参数里的 types 是逗号串,严禁入设置污染勾选状态)
     for key in ("types", "options"):
-        if key in opts:
+        if isinstance(opts.get(key), dict):
             old[key] = opts[key]
     try:
         with open(settings_path(), "w", encoding="utf-8") as f:
