@@ -345,6 +345,77 @@ def _save_settings(opts):
         pass
 
 
+_ASSET_PORT = {"port": 0}
+
+
+def _start_asset_server():
+    """内嵌本地资产服务(127.0.0.1 随机端口):
+    页面/ui-dist 资产 + /t/ 缩略图 + /dt/ 演示缩略图。
+    WebView2 的 file:// 页面禁止加载目录外本地文件(实测三种编码全拒),
+    本地缓存从未真正显示过——同源 http 是唯一正解。"""
+    import http.server
+    import socketserver
+
+    ui_root = os.path.join(res_dir(), "ui-dist")
+    thumb_root = os.path.join(app_dir(), "thumb_cache")
+    demo_thumb_root = os.path.join(res_dir(), "demo-assets", "thumbs")
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def _send(self, path, ctype):
+            try:
+                with open(path, "rb") as f:
+                    data = f.read()
+            except OSError:
+                self.send_error(404)
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "max-age=86400")
+            self.end_headers()
+            self.wfile.write(data)
+
+        def do_GET(self):
+            import posixpath
+            url = self.path.split("?")[0]
+            if url.startswith("/t/"):
+                name = os.path.basename(posixpath.basename(url[3:]))
+                self._send(os.path.join(thumb_root, name), "image/jpeg")
+            elif url.startswith("/dt/"):
+                name = os.path.basename(url[4:])
+                self._send(os.path.join(demo_thumb_root, name), "image/jpeg")
+            else:
+                rel = os.path.normpath(posixpath.basename(url) if url == "/" or url == "/fetcher.html"
+                                       else posixpath.basename(url))
+                # 只取文件名,杜绝路径穿越;子目录资产按相对段拼
+                parts = [seg for seg in url.split("/") if seg not in ("", ".", "..")]
+                full = os.path.join(ui_root, *parts) if parts else os.path.join(ui_root, "fetcher.html")
+                full = os.path.realpath(full)
+                if not full.startswith(os.path.realpath(ui_root)):
+                    self.send_error(403)
+                    return
+                ctype = "text/html" if full.endswith(".html") else                         "text/css" if full.endswith(".css") else                         "application/javascript" if full.endswith(".js") else                         "font/woff2" if full.endswith(".woff2") else                         "image/png" if full.endswith(".png") else "application/octet-stream"
+                self._send(full, ctype)
+
+    class TS(socketserver.ThreadingTCPServer):
+        allow_reuse_address = True
+        daemon_threads = True
+
+    import socket
+    for _ in range(8):
+        try:
+            srv = TS(("127.0.0.1", 0), Handler)
+            _ASSET_PORT["port"] = srv.server_address[1]
+            threading.Thread(target=srv.serve_forever, daemon=True).start()
+            return _ASSET_PORT["port"]
+        except OSError:
+            continue
+    return 0
+
+
 def _screen_size():
     """主显示器物理像素(pywebview 窗口按物理像素计)"""
     try:
@@ -362,9 +433,11 @@ def main():
     index = os.path.join(res_dir(), "ui-dist", "fetcher.html")
     sw, sh = _screen_size()
     width, height = int(sw * 0.85), int(sh * 0.85)
+    port = _start_asset_server()
+    page = f"http://127.0.0.1:{port}/fetcher.html" if port else index  # 服务起不来退回 file://
     _STATE["window"] = webview.create_window(
         "非猫 Civitai 信息补全器" + ("(演示版)" if DEMO_MODE else ""),
-        url=index,
+        url=page,
         js_api=api,
         background_color="#0f0f0f",
         width=width, height=height,

@@ -619,7 +619,7 @@ function DetailDialog(props: {
         api().get_thumbnails({ urls: srcs, width: 450 }).then((map: Record<string, string>) => {
             imgs.forEach((im) => {
                 const s = im.getAttribute('src') || '';
-                if (map[s]) im.setAttribute('src', 'file:///' + map[s].replace(/\\/g, '/'));
+                if (map[s]) im.setAttribute('src', fileUrl(map[s]));
             });
             finish();
         }).catch(finish);
@@ -696,7 +696,7 @@ function DetailDialog(props: {
                                         {v.images.map((im: any) => (
                                             <img
                                                 key={im.url}
-                                                src={imgMap[im.url] ? 'file:///' + imgMap[im.url].replace(/\\/g, '/') : im.url}
+                                                src={imgMap[im.url] ? fileUrl(imgMap[im.url]) : im.url}
                                                 alt="" loading="lazy"
                                                 className="h-28 shrink-0 rounded-md border border-border object-cover"
                                             />
