@@ -214,6 +214,12 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
         return () => ob.disconnect();
     }, [cursor, load]);
 
+    const openDetailRef = useRef<(id: number) => void>(() => {});
+    useEffect(() => {
+        const h = (e: Event) => openDetailRef.current((e as CustomEvent).detail as number);
+        window.addEventListener('fe:openModel', h);
+        return () => window.removeEventListener('fe:openModel', h);
+    }, []);
     const openDetail = async (id: number) => {
         setDetail({ id, loading: true });
         try {
@@ -223,6 +229,7 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
             setDetail({ id, error: String(e) });
         }
     };
+    openDetailRef.current = openDetail;
 
     const Section = ({ id, title, children }: { id: string; title: string; children: any }) => (
         <div className="border-b border-border pb-2">

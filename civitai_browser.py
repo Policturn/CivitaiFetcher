@@ -500,6 +500,44 @@ def get_model_detail(model_id, api_key=""):
     }
 
 
+IMG_SORTS = ["Most Reactions", "Newest", "Most Discussed"]
+IMG_PERIODS = ["AllTime", "Year", "Month", "Week", "Day"]
+
+
+def search_images(opts):
+    """图墙:/api/v1/images(cursor 翻页)。
+    注:Civitai 已从公开 API 移除图片生成参数(prompt/meta),trpc 亦锁 401——
+    本功能提供图片浏览 + 关联模型(触发词参考),prompt 无法获取属平台限制。"""
+    params = {"limit": max(1, min(int(opts.get("limit") or 40), 100)),
+              "nsfw": "true"}
+    if opts.get("sort"):
+        params["sort"] = opts["sort"]
+    if opts.get("period"):
+        params["period"] = opts["period"]
+    if opts.get("cursor"):
+        params["cursor"] = opts["cursor"]
+    data = _get(f"{api_base()}/images", params=params,
+                api_key=opts.get("api_key", "") if api_base() == API_BASES["com"] else "")
+    items = []
+    for i in data.get("items") or []:
+        if i.get("type") != "image":
+            continue
+        stats = i.get("stats") or {}
+        items.append({
+            "id": i.get("id"), "url": i.get("url"),
+            "width": i.get("width"), "height": i.get("height"),
+            "nsfwLevel": i.get("nsfwLevel") or 0,
+            "baseModel": i.get("baseModel") or "",
+            "username": i.get("username") or "",
+            "createdAt": (i.get("createdAt") or "")[:10],
+            "reactions": stats.get("reactionCount") or stats.get("cryCount") or 0,
+            "comments": stats.get("commentCount") or 0,
+            "modelVersionIds": (i.get("modelVersionIds") or [])[:4],
+        })
+    return {"items": items,
+            "nextCursor": (data.get("metadata") or {}).get("nextCursor")}
+
+
 def check_api_key(api_key, proxy=""):
     """GET /api/v1/me 验证 Key,返回 {ok, username|error}"""
     import requests

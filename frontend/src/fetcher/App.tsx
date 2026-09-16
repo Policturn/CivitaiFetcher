@@ -8,10 +8,12 @@ import { api, pushEvent, useFeEvent, inputCls, CIVITAI_TYPES, TYPE_ZH, BASE_MODE
 import BrowseView from './BrowseView';
 import DownloadsView from './DownloadsView';
 import ReorganizeView from './ReorganizeView';
+import ImagesView from './ImagesView';
 import SettingsView, { type DownloadDefaults } from './SettingsView';
 
 const NAV_TABS: Array<[string, string]> = [
     ['browse', 'Civitai 浏览'],
+    ['images', '图片参考'],
     ['scan', '扫描补档'],
     ['downloads', '下载队列'],
     ['reorganize', '整理归类'],
@@ -391,6 +393,12 @@ export default function App() {
                     webuiRoot={webuiRoot} proxy={proxy} apiKey={apiKey} apiSource={apiSource}
                     defaults={defaults} pinned={pinned}
                     onOpenDownloads={() => setView('downloads')}
+                />
+            </div>
+            <div className={cn('flex min-h-0 flex-1 flex-col', view !== 'images' && 'hidden')}>
+                <ImagesView
+                    proxy={proxy} apiKey={apiKey}
+                    onOpenModel={(mid) => { /* 简单方案:切浏览页并打开详情由 BrowseView 暴露?这里用 URL 事件 */ window.dispatchEvent(new CustomEvent('fe:openModel', { detail: mid })); setView('browse'); }}
                 />
             </div>
             <div className={cn('flex min-h-0 flex-1 flex-col', view !== 'downloads' && 'hidden')}>

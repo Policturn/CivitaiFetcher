@@ -233,6 +233,15 @@ class Api:
         cf.ensure_session(opts.get("proxy", ""), opts.get("apiKey", ""))
         return cb.get_model_detail(opts.get("modelId"), api_key=opts.get("apiKey", ""))
 
+    def get_version_info(self, opts):
+        cf.ensure_session(opts.get("proxy", ""), opts.get("apiKey", ""))
+        key = opts.get("apiKey", "") if cb.api_base() == cb.API_BASES["com"] else ""
+        return cb._get(f"{cb.api_base()}/model-versions/{opts.get('versionId')}", api_key=key)
+
+    def search_images(self, opts):
+        cf.ensure_session(opts.get("proxy", ""), opts.get("apiKey", ""))
+        return cb.search_images(opts)
+
     def local_library_index(self, opts):
         if DEMO_MODE:
             return demo.local_model_index()
