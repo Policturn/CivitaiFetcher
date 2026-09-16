@@ -139,6 +139,7 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
             await api().enqueue_download({
                 modelId: it.id, versionId: v.id,
                 modelName: it.name || '', versionName: v.name || '',
+                thumbUrl: (it?.version?.images?.[0]?.url) || '',
                 targetRoot: root, subfolder: dl.dlSubfolder || '',
                 autoCategory: dl.dlAutoCategory !== false, withExtras: dl.dlWithExtras !== false,
                 apiKey, proxy,
@@ -267,6 +268,9 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
         }
     }, [initDone, typeTab, baseModels, tag, creator, sort, period, customStart, customEnd, hideNsfw, sidebarOpen]);
 
+    const onThumbReady = useCallback((url: string, path: string) => {
+        setThumbMap((prev) => (prev[url] ? prev : { ...prev, [url]: path }));
+    }, []);
     const shown = hideNsfw ? items.filter((i) => !i.nsfw) : items;
 
     return (
@@ -442,6 +446,7 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
                                 localPath={it?.version?.images?.[0]?.url ? thumbMap[it.version.images[0].url] : undefined}
                                 onOpen={() => openDetail(it.id)}
                                 onQuickDownload={() => quickDownload(it)}
+                                onThumbReady={onThumbReady}
                             />
                         ))}
                         {loading && Array.from({ length: 8 }).map((_, i) => (
@@ -537,6 +542,7 @@ function DownloadDialog(props: {
             await api().enqueue_download({
                 modelId, versionId: version.id,
                 modelName: modelName || '', versionName: version.name || '',
+                thumbUrl: (version?.images?.[0]?.url) || '',
                 targetRoot, subfolder, autoCategory, withExtras,
                 apiKey, proxy,
             });
@@ -775,11 +781,32 @@ function DetailDialog(props: {
 
 const ThumbCard = memo(function ThumbCard(props: {
     it: any; downloaded: boolean; localPath?: string;
-    onOpen: () => void; onQuickDownload: () => void;
+    onOpen: () => void; onQuickDownload: () => void; onThumbReady?: (url: string, path: string) => void;
 }) {
-    const { it, downloaded, localPath, onOpen, onQuickDownload } = props;
+    const { it, downloaded, localPath, onOpen, onQuickDownload, onThumbReady } = props;
     const firstUrl = it?.version?.images?.[0]?.url as string | undefined;
-    const src = localPath ? fileUrl(localPath) : '';
+    // 视口预取:进入 可视区+下方~700px(2-3行) 即请求该图;下载完成立即点亮
+    const [ownPath, setOwnPath] = useState('');
+    const cardRef = useRef<HTMLDivElement>(null);
+    const asked = useRef(false);
+    useEffect(() => {
+        const el = cardRef.current;
+        if (!el || localPath || ownPath || asked.current || !firstUrl || !api()) return;
+        const io = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting && !asked.current) {
+                asked.current = true;
+                api().get_thumbnails({ urls: [firstUrl], width: 450 }).then((m: any) => {
+                    const path = m && m[firstUrl];
+                    if (path) { setOwnPath(path); onThumbReady?.(firstUrl, path); }
+                }).catch(() => {});
+                io.disconnect();
+            }
+        }, { rootMargin: '700px 0px 700px 0px' });
+        io.observe(el);
+        return () => io.disconnect();
+    }, [localPath, ownPath, firstUrl, onThumbReady]);
+    const effectiveLocal = localPath || ownPath;
+    const src = effectiveLocal ? fileUrl(effectiveLocal) : '';
     const onImgError = (e: any) => {
         // 本地读取失败 → 回退 450 小图(绝不直连原图,几 MB 的解码会压垮机器)
         const img = e.currentTarget as HTMLImageElement;
@@ -790,6 +817,7 @@ const ThumbCard = memo(function ThumbCard(props: {
     };
     return (
         <div
+            ref={cardRef}
             role="button"
             tabIndex={0}
             onClick={onOpen}

@@ -95,7 +95,7 @@ def _snapshot():
 
 
 def _public_task(t):
-    keys = ("id", "modelId", "versionId", "modelName", "versionName", "type",
+    keys = ("id", "modelId", "versionId", "modelName", "versionName", "thumbUrl", "type",
             "targetDir", "status", "percent", "speed", "downloadedMB", "totalMB",
             "error", "category", "paused")
     return {k: t.get(k) for k in keys}
@@ -131,6 +131,7 @@ def enqueue_download(opts):
         "status": "queued", "percent": 0, "speed": 0,
         "downloadedMB": 0, "totalMB": 0, "error": "", "category": "",
         "modelName": str(opts.get("modelName") or ""), "versionName": str(opts.get("versionName") or ""),
+        "thumbUrl": str(opts.get("thumbUrl") or ""),
         "type": "", "targetDir": "",
         "cancel": False, "paused": False,
         "_opts": dict(opts),
@@ -269,6 +270,11 @@ def _run_task(task):
     task["modelName"] = model.get("name", "")
     task["versionName"] = ver.get("name", "")
     task["type"] = model.get("type", "")
+    # 任务缩略图:版本首图优先,退回入队时带的卡片图
+    if not task.get("thumbUrl"):
+        imgs = ver.get("images") or []
+        if imgs and imgs[0].get("url"):
+            task["thumbUrl"] = imgs[0]["url"]
 
     # 目标目录:类型默认目录 → 子文件夹 → 大类
     cf_type = cb.TYPE_TO_CF.get(model.get("type"), "lora")

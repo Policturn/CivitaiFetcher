@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Ban, Pause, Play, RotateCcw } from 'lucide-react';
+import { Ban, Loader2, Pause, Play, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { api, useFeEvent } from './api';
 
@@ -39,9 +39,29 @@ export default function DownloadsView() {
     const resume = async (id: string) => { await api().resume_download(id); refresh(); };
     const retry = async (id: string) => { await api().retry_download(id); refresh(); };
 
+    const TaskThumb = ({ url }: { url?: string }) => {
+        const [path, setPath] = useState('');
+        useEffect(() => {
+            if (!url || !api()) return;
+            api().get_thumbnails({ urls: [url], width: 450 }).then((m: any) => {
+                if (m && m[url]) setPath(m[url]);
+            }).catch(() => {});
+        }, [url]);
+        if (!url) return null;
+        return path ? (
+            <img src={'/t/' + encodeURIComponent(path.split(/[\/]/).pop() || '')} alt=""
+                className="size-10 shrink-0 rounded-md border border-border object-cover" />
+        ) : (
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-md border border-border bg-input/40">
+                <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+            </div>
+        );
+    };
+
     const TaskRow = ({ t, active }: { t: Task; active?: boolean }) => (
         <div className="rounded-lg border border-border bg-card p-2.5">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2.5">
+                <TaskThumb url={t.thumbUrl} />
                 <span className="min-w-0 flex-1 truncate text-sm font-medium">
                     {t.modelName || '…'} {t.versionName ? `· ${t.versionName}` : ''}
                 </span>
