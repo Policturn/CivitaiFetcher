@@ -21,8 +21,7 @@
                 d.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#b91c1c;color:#fff;font:12px/1.5 Consolas,monospace;padding:5px 10px;white-space:pre-wrap;word-break:break-all;';
                 (document.body || document.documentElement).appendChild(d);
             }
-            d.textContent += (d.textContent ? '
-' : '') + tag + ' ' + msg;
+            d.textContent += (d.textContent ? String.fromCharCode(10) : '') + tag + ' ' + msg;
         }
         window.addEventListener('error', function (e) { show('ERROR:', e.message + ' @' + String(e.filename || '').split('/').pop() + ':' + e.lineno); });
         window.addEventListener('unhandledrejection', function (e) { show('REJECT:', String(e.reason).slice(0, 300)); });
