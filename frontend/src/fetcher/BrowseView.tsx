@@ -227,11 +227,10 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
         }).finally(() => setInitDone(true));
     }, []);
     useEffect(() => {
-        if (!initDone) return;
-        const t = setTimeout(() => {
+        // 变更即存:防抖会被"改完立刻关窗"截胡,桥调用很轻,直接落盘
+        if (initDone) {
             api()?.save_browse?.({ typeTab, baseModels, tag, creator, sort, period, customStart, customEnd, hideNsfw, sidebarOpen });
-        }, 600);
-        return () => clearTimeout(t);
+        }
     }, [initDone, typeTab, baseModels, tag, creator, sort, period, customStart, customEnd, hideNsfw, sidebarOpen]);
 
     const shown = hideNsfw ? items.filter((i) => !i.nsfw) : items;

@@ -11,8 +11,8 @@ import DownloadsView from './DownloadsView';
 import ReorganizeView from './ReorganizeView';
 
 const NAV_TABS: Array<[string, string]> = [
-    ['scan', '扫描补档'],
     ['browse', 'Civitai 浏览'],
+    ['scan', '扫描补档'],
     ['downloads', '下载队列'],
     ['reorganize', '整理归类'],
 ];
@@ -87,7 +87,7 @@ export default function App() {
     const [progress, setProgress] = useState<[number, number]>([0, 0]);
     const [status, setStatus] = useState('就绪 — 点击「开始扫描」补全模型信息');
     const [lines, setLines] = useState<Array<{ text: string; tag?: string }>>([]);
-    const [view, setView] = useState('scan');
+    const [view, setView] = useState('browse'); // 浏览为核心功能,默认页
     const [user, setUser] = useState('');
     const [demo, setDemo] = useState(false);
     const [apiSource, setApiSource] = useState('com');
@@ -152,11 +152,9 @@ export default function App() {
         logBox.current?.scrollTo({ top: logBox.current.scrollHeight });
     }, [lines]);
 
-    // 页签记忆:切页防抖保存,重开恢复
+    // 页签记忆:变更即存,重开恢复
     useEffect(() => {
-        if (!ready || !api()) return;
-        const t = setTimeout(() => { api().save_browse?.({ view }); }, 500);
-        return () => clearTimeout(t);
+        if (ready) api()?.save_browse?.({ view });
     }, [view, ready]);
 
     // 登录状态:有 Key 时验证一次
