@@ -52,8 +52,6 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
     const [creatorInput, setCreatorInput] = useState('');
     const [sort, setSort] = useState('Most Downloaded');
     const [period, setPeriod] = useState('AllTime');
-    const [customStart, setCustomStart] = useState('');
-    const [customEnd, setCustomEnd] = useState('');
     const [hideNsfw, setHideNsfw] = useState(false);
     // 布局
     const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -177,24 +175,12 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
         setLoading(true);
         setError('');
         try {
-            // 时段换算:半年/三个月/自定义 → startDate/endDate(Unix 秒),枚举原样传
-            let p: string | undefined = period;
-            let startDate: number | undefined;
-            let endDate: number | undefined;
-            const DAY = 86400;
-            if (period === 'HalfYear') { p = undefined; startDate = Math.floor(Date.now() / 1000) - 180 * DAY; }
-            else if (period === 'Quarter') { p = undefined; startDate = Math.floor(Date.now() / 1000) - 90 * DAY; }
-            else if (period === 'Custom') {
-                p = undefined;
-                if (customStart) startDate = Math.floor(new Date(customStart + 'T00:00:00').getTime() / 1000);
-                if (customEnd) endDate = Math.floor(new Date(customEnd + 'T23:59:59').getTime() / 1000);
-            }
             const res = await api().browse_models({
                 query,
                 // Lora 涵盖 LoCon(两者使用上无差异)
                 types: typeTab === 'all' ? [] : typeTab === 'LORA' ? ['LORA', 'LoCon'] : [typeTab],
                 baseModels, tag, username: creator,
-                sort, period: p, startDate, endDate, limit: 20, cursor: cur, apiKey, proxy,
+                sort, period, limit: 20, cursor: cur, apiKey, proxy,
             });
             if (seq !== reqSeq.current) return;
             setItems((prev) => (replace ? res.items : [...prev, ...res.items]));
@@ -204,7 +190,7 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
         } finally {
             if (seq === reqSeq.current) setLoading(false);
         }
-    }, [query, typeTab, baseModels, tag, creator, sort, period, customStart, customEnd, apiKey, proxy]);
+    }, [query, typeTab, baseModels, tag, creator, sort, period, apiKey, proxy]);
 
     useEffect(() => {
         const t = setTimeout(() => load(undefined, true), 400);
@@ -267,8 +253,6 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
                 if (b.tag !== undefined) setTag(b.tag);
                 if (b.creator) { setCreator(b.creator); setCreatorInput(b.creator); }
                 if (b.sort) setSort(b.sort);
-                if (b.customStart) setCustomStart(b.customStart);
-                if (b.customEnd) setCustomEnd(b.customEnd);
                 if (b.period) setPeriod(b.period);
                 if (b.hideNsfw !== undefined) setHideNsfw(!!b.hideNsfw);
                 if (b.sidebarOpen !== undefined) setSidebarOpen(!!b.sidebarOpen);
@@ -284,9 +268,9 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
     useEffect(() => {
         // 变更即存:防抖会被"改完立刻关窗"截胡,桥调用很轻,直接落盘
         if (initDone) {
-            api()?.save_browse?.({ typeTab, baseModels, tag, creator, sort, period, customStart, customEnd, hideNsfw, sidebarOpen });
+            api()?.save_browse?.({ typeTab, baseModels, tag, creator, sort, period, hideNsfw, sidebarOpen });
         }
-    }, [initDone, typeTab, baseModels, tag, creator, sort, period, customStart, customEnd, hideNsfw, sidebarOpen]);
+    }, [initDone, typeTab, baseModels, tag, creator, sort, period, hideNsfw, sidebarOpen]);
 
     const onThumbReady = useCallback((url: string, path: string) => {
         setThumbMap((prev) => (prev[url] ? prev : { ...prev, [url]: path }));
@@ -335,12 +319,9 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
                 <div className="ml-auto flex items-center gap-1">
                     <span className="text-xs text-muted-foreground">排序</span>
                     <Select value={sort} onValueChange={(v) => setSort(String(v))}
-                        disabled={period === 'HalfYear' || period === 'Quarter' || period === 'Custom'}
                         items={SORTS.map(([v, l]) => ({ label: l, value: v }))}>
                         <SelectTrigger
                             size="sm"
-                            title={(period === 'HalfYear' || period === 'Quarter' || period === 'Custom')
-                                ? '自定义时段下按发布时间排序' : undefined}
                             className="w-32 border-transparent bg-transparent shadow-none before:hidden"
                             aria-label="排序"
                         >
@@ -352,26 +333,12 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
                     <span className="text-xs text-muted-foreground">时段</span>
                     <Select value={period} onValueChange={(v) => setPeriod(String(v))}
                         items={PERIODS.map(([v, l]) => ({ label: l, value: v }))}>
-                        <SelectTrigger
-                            size="sm"
-                            className={cn('border-transparent bg-transparent shadow-none before:hidden',
-                                period === 'Custom' ? 'w-24' : 'w-24')}
-                            aria-label="时段"
-                        >
+                        <SelectTrigger size="sm" className="w-24 border-transparent bg-transparent shadow-none before:hidden"
+                            aria-label="时段">
                             <SelectValue />
                         </SelectTrigger>
                         <SelectPopup>{PERIODS.map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectPopup>
                     </Select>
-                    {period === 'Custom' && (
-                        <>
-                            <span className="h-4 w-px bg-border" />
-                            <input type="date" className="h-7 rounded-md border border-input bg-card px-1.5 text-xs text-foreground"
-                                value={customStart} onChange={(e) => setCustomStart(e.target.value)} aria-label="开始日期" />
-                            <span className="text-xs text-muted-foreground">至</span>
-                            <input type="date" className="h-7 rounded-md border border-input bg-card px-1.5 text-xs text-foreground"
-                                value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} aria-label="结束日期" />
-                        </>
-                    )}
                 </div>
             </div>
 
@@ -470,7 +437,7 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
                                 onThumbReady={onThumbReady}
                             />
                         ))}
-                        {loading && Array.from({ length: 8 }).map((_, i) => (
+                        {loading && !shown.length && Array.from({ length: 8 }).map((_, i) => (
                             <div key={`sk${i}`} className="overflow-hidden rounded-lg border border-border bg-card">
                                 <div className="aspect-[4/5] w-full animate-pulse bg-input/40" />
                                 <div className="p-2.5">

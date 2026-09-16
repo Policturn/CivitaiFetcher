@@ -40,9 +40,8 @@ export const SORTS: Array<[string, string]> = [
 ];
 
 export const PERIODS: Array<[string, string]> = [
-    ['AllTime', '全部时间'], ['Year', '今年'], ['HalfYear', '近半年'],
-    ['Quarter', '近三个月'], ['Month', '本月'], ['Week', '本周'], ['Day', '今天'],
-    ['Custom', '自定义…'],
+    ['AllTime', '全部时间'], ['Year', '今年'], ['Month', '本月'],
+    ['Week', '本周'], ['Day', '今天'],
 ];
 
 /** 本地路径 → 合法 file:/// URL(中文/空格必须编码,否则 WebView2 加载失败回退远程大图) */
