@@ -667,6 +667,14 @@ function DetailDialog(props: {
         }).catch(finish);
     }, [detail, loaded]);
 
+    // 实际底模:示例图生成参数里的 Model 字段(标注只到大类,实际血统看这里)
+    const realBases: string[] = [];
+    for (const im of (v?.images || [])) {
+        const m = (im as any)?.meta?.Model || (im as any)?.meta?.baseModel;
+        if (m && !realBases.includes(String(m))) realBases.push(String(m));
+        if (realBases.length >= 3) break;
+    }
+
     // 选中版本的示例图 → 本地缓存
     useEffect(() => {
         const urls = (v?.images || []).map((i: any) => i.url).filter(Boolean);
@@ -733,6 +741,12 @@ function DetailDialog(props: {
                                     {v.createdAt && <span>{v.createdAt}</span>}
                                     {v.trainedWords?.length > 0 && <span className="min-w-0 truncate">触发词: {v.trainedWords.join(', ')}</span>}
                                 </div>
+                                {realBases.length > 0 && (
+                                    <div className="rounded-lg bg-background px-2.5 py-1.5 text-xs leading-5 text-muted-foreground">
+                                        示例图实际底模:{realBases.map((b) => <span key={b} className="ml-1 rounded bg-secondary px-1.5 py-0.5">{b}</span>)}
+                                        <span className="ml-1.5 opacity-70">(标注只到大类;与本行差异大时,该模型在你的底模上可能效果差)</span>
+                                    </div>
+                                )}
                                 {v.images?.length > 0 && (
                                     <div className="flex gap-2.5 overflow-x-auto pb-1">
                                         {v.images.map((im: any) => (
