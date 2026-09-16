@@ -795,7 +795,7 @@ const ThumbCard = memo(function ThumbCard(props: {
         const io = new IntersectionObserver((entries) => {
             if (entries[0].isIntersecting && !asked.current) {
                 asked.current = true;
-                api().get_thumbnails({ urls: [firstUrl], width: 450 }).then((m: any) => {
+                api().get_thumbnails({ urls: [firstUrl], width: 450, urgent: true }).then((m: any) => {
                     const path = m && m[firstUrl];
                     if (path) { setOwnPath(path); onThumbReady?.(firstUrl, path); }
                 }).catch(() => {});

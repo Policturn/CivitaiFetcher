@@ -246,7 +246,8 @@ class Api:
         cf.ensure_session(opts.get("proxy", ""), opts.get("apiKey", ""))
         return cb.get_thumbnail_cache_async(
             opts.get("urls") or [], width=int(opts.get("width") or 450),
-            on_ready=lambda m: _push({"type": "thumbs_ready", "map": m}))
+            on_ready=lambda m: _push({"type": "thumbs_ready", "map": m}),
+            urgent=bool(opts.get("urgent")))
 
     def check_api_key(self, opts):
         if DEMO_MODE:

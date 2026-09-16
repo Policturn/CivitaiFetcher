@@ -196,7 +196,7 @@ def _maybe_prune_thumb_cache(max_files=8000, keep=5000):
             pass
 
 
-def get_thumbnail_cache_async(urls, width=450, on_ready=None):
+def get_thumbnail_cache_async(urls, width=450, on_ready=None, urgent=False):
     """缩略图两级加载:已缓存的同步秒回;缺失的后台并发下载,
     完成后 on_ready({原url: 本地路径}) 增量回调。"""
     if not urls:
@@ -214,6 +214,13 @@ def get_thumbnail_cache_async(urls, width=450, on_ready=None):
         else:
             todo[small] = (u, path)
     _maybe_prune_thumb_cache()
+    if todo and urgent and len(todo) <= 3:
+        # 加急(卡片预取):同步直下,不等被批量占满的线程池
+        cf.ensure_session()
+        for small, (u, path) in list(todo.items()):
+            if _fetch_thumb(small, path):
+                result[u] = path
+        return result
     if todo and on_ready:
         cf.ensure_session()
         threading.Thread(target=_bg_fetch_thumbs, args=(todo, on_ready),
@@ -236,19 +243,14 @@ def _bg_fetch_thumbs(todo, on_ready):
 
     futures = {_thumb_pool.submit(_with_retry, small, pair[1]): pair
                for small, pair in todo.items()}
-    try:
-        concurrent.futures.wait(futures, timeout=120)
-    except Exception:
-        pass
-    done = {}
-    for fut, (u, p) in futures.items():
+    # 逐张完成逐张回调:一张到货前端亮一张,不等整批
+    for fut in concurrent.futures.as_completed(futures, timeout=180):
+        u, p = futures[fut]
         try:
-            if fut.done() and fut.result() and os.path.isfile(p):
-                done[u] = p
+            if fut.result() and os.path.isfile(p):
+                on_ready({u: p})
         except Exception:
             continue
-    if done:
-        on_ready(done)
 
 
 def get_thumbnail_cache(urls, width=450):
