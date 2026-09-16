@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Ban, Loader2, Pause, Play, RotateCcw } from 'lucide-react';
+import { Ban, Pause, Play, RotateCcw } from 'lucide-react';
 import { api, useFeEvent } from './api';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -12,22 +12,17 @@ const STATUS_ZH: Record<string, string> = {
 };
 
 function TaskThumb({ url }: { url?: string }) {
-    const [path, setPath] = useState('');
-    useEffect(() => {
-        if (!url || !api()) return;
-        api().get_thumbnails({ urls: [url], width: 450, urgent: true }).then((m: any) => {
-            if (m && m[url]) setPath(m[url]);
-        }).catch(() => {});
-    }, [url]);
-    if (!url) {
-        return <div className="flex size-full items-center justify-center bg-input/40 text-xs text-muted-foreground">无图</div>;
-    }
-    if (path) {
-        return <img src={'/t/' + encodeURIComponent(path.split(/[\/]/).pop() || '')} alt="" className="size-full object-cover" />;
+    // 任务卡缩略图直接走远程 450px CDN(本地缓存通道会被几十张历史卡的同
+    // 步拉取打满);http 页面加载远程图无限制,加载中显示占位。
+    const [err, setErr] = useState(false);
+    if (!url || err) {
+        return <div className="flex size-full items-center justify-center bg-input/40 text-xs text-muted-foreground">{err ? '加载失败' : '无图'}</div>;
     }
     return (
-        <div className="flex size-full items-center justify-center bg-input/40">
-            <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        <div className="size-full bg-input/40">
+            <img src={url.replace('original=true', 'width=450').replace(/width=\d+/, 'width=450')}
+                alt="" loading="lazy" className="size-full object-cover"
+                onError={() => setErr(true)} />
         </div>
     );
 }
