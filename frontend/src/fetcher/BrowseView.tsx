@@ -94,16 +94,15 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
         pull();
     }, [webuiRoot]);
     useEffect(() => { refreshLocalIdx(); }, [refreshLocalIdx]);
-    // 下载完成 → 增量并入索引(不做全库重扫,过载源头之一)
+    // 下载完成 → 增量并入索引(仅成功任务;索引未就绪时从事件数据直接建档)
     useFeEvent((e) => {
-        if (e.type !== 'downloads' || (e.reason !== 'done' && e.reason !== 'failed')) return;
-        const done = [...(e.state?.done || []), e.state?.active].filter(Boolean);
-        const add = done.filter((t: any) => t.modelId || t.versionId);
-        if (!add.length) return;
+        if (e.type !== 'downloads' || e.reason !== 'done') return;
+        const fin = [...(e.state?.done || []), e.state?.active].filter(Boolean);
+        const ok = fin.filter((t: any) => t.status === 'done' && (t.modelId || t.versionId));
+        if (!ok.length) return;
         setLocalIdx((prev) => {
-            if (!prev) return prev;
-            const mIds = new Set(prev.modelIds), vIds = new Set(prev.versionIds);
-            for (const t of add) {
+            const mIds = new Set(prev?.modelIds || []), vIds = new Set(prev?.versionIds || []);
+            for (const t of ok) {
                 if (t.modelId) mIds.add(String(t.modelId));
                 if (t.versionId) vIds.add(String(t.versionId));
             }
@@ -795,7 +794,7 @@ const ThumbCard = memo(function ThumbCard(props: {
             tabIndex={0}
             onClick={onOpen}
             onKeyDown={(e) => { if (e.key === 'Enter') onOpen(); }}
-            className={`group relative cursor-pointer overflow-hidden rounded-lg border border-border bg-card text-left outline-none transition-opacity focus-visible:ring-2 focus-visible:ring-ring ${downloaded ? 'opacity-55 hover:opacity-100' : ''}`}
+            className={`group relative cursor-pointer overflow-hidden rounded-lg border border-border bg-card text-left outline-none transition-opacity focus-visible:ring-2 focus-visible:ring-ring ${downloaded ? 'opacity-40 hover:opacity-100' : ''}`}
         >
             <div className="relative aspect-[4/5] w-full overflow-hidden bg-input/40">
                 {src ? (
