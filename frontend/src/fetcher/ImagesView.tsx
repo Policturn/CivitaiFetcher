@@ -44,17 +44,24 @@ export default function ImagesView(props: { proxy: string; apiKey: string; onOpe
         const seq = ++reqSeq.current;
         setLoading(true);
         setError('');
-        try {
-            const res = await api().search_images({ sort, period, limit: 60, cursor: cur, apiKey, proxy });
-            if (seq !== reqSeq.current) return;
-            setItems((prev) => (replace ? res.items : [...prev, ...res.items]));
-            setCursor(res.nextCursor || undefined);
-            loadedOnce.current = true;
-        } catch (e: any) {
-            if (seq === reqSeq.current) setError(String(e?.message || e).replace('http_', 'HTTP '));
-        } finally {
-            if (seq === reqSeq.current) setLoading(false);
+        // 瞬时网络错误自动重试(最多2次,间隔1.5s),重试仍失败才显示红条
+        for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+                const res = await api().search_images({ sort, period, limit: 60, cursor: cur, apiKey, proxy });
+                if (seq !== reqSeq.current) return;
+                setItems((prev) => (replace ? res.items : [...prev, ...res.items]));
+                setCursor(res.nextCursor || undefined);
+                loadedOnce.current = true;
+                setLoading(false);
+                setError('');
+                return;
+            } catch (e: any) {
+                if (seq !== reqSeq.current) return;
+                if (attempt < 2) { await new Promise((r) => setTimeout(r, 1500)); continue; }
+                setError(String(e?.message || e).replace('http_', 'HTTP '));
+            }
         }
+        setLoading(false);
     }, [sort, period, apiKey, proxy]);
 
     useEffect(() => {
@@ -127,7 +134,12 @@ export default function ImagesView(props: { proxy: string; apiKey: string; onOpe
                 Civitai 已从公开接口移除图片生成参数(prompt),点击图片可看关联模型的触发词作参考
             </div>
 
-            {error && <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-400">{error}</div>}
+            {error && (
+                <div className="flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-400">
+                    <span className="min-w-0 flex-1 truncate">{error}</span>
+                    <Button variant="ghost" size="sm" onClick={() => load(undefined, true)}>重试</Button>
+                </div>
+            )}
 
             {/* 瀑布流 */}
             <div className="min-h-0 flex-1 overflow-y-auto pr-1">
