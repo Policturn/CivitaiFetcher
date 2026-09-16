@@ -66,6 +66,8 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
     const [detail, setDetail] = useState<any>(null);
     const [dlVersion, setDlVersion] = useState<any>(null);
     const [localIdx, setLocalIdx] = useState<{ modelIds: Set<string>; versionIds: Set<string> } | null>(null);
+    // 下载实时状态:key = versionId / 'm'+modelId → {percent, status}
+    const [dlMap, setDlMap] = useState<Record<string, { percent: number; status: string }>>({});
     const [thumbMap, setThumbMap] = useState<Record<string, string>>({});
     const reqSeq = useRef(0);
     const sentinel = useRef<HTMLDivElement>(null);
@@ -94,20 +96,38 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
         pull();
     }, [webuiRoot]);
     useEffect(() => { refreshLocalIdx(); }, [refreshLocalIdx]);
-    // 下载完成 → 增量并入索引(仅成功任务;索引未就绪时从事件数据直接建档)
+    // 下载实时状态:进度条驱动(浏览卡片 + 完成转已下载)
     useFeEvent((e) => {
-        if (e.type !== 'downloads' || e.reason !== 'done') return;
-        const fin = [...(e.state?.done || []), e.state?.active].filter(Boolean);
-        const ok = fin.filter((t: any) => t.status === 'done' && (t.modelId || t.versionId));
-        if (!ok.length) return;
-        setLocalIdx((prev) => {
-            const mIds = new Set(prev?.modelIds || []), vIds = new Set(prev?.versionIds || []);
-            for (const t of ok) {
-                if (t.modelId) mIds.add(String(t.modelId));
-                if (t.versionId) vIds.add(String(t.versionId));
-            }
-            return { modelIds: mIds, versionIds: vIds };
-        });
+        const applyTasks = (tasks: any[]) => {
+            if (!tasks.length) return;
+            setDlMap((prev) => {
+                const next = { ...prev };
+                let doneOk: any[] = [];
+                for (const t of tasks) {
+                    if (!t || (!t.versionId && !t.modelId)) continue;
+                    const st = { percent: t.percent || 0, status: t.status || '' };
+                    if (t.versionId) next[String(t.versionId)] = st;
+                    if (t.modelId) next['m' + String(t.modelId)] = st;
+                    if (t.status === 'done') doneOk.push(t);
+                }
+                if (doneOk.length) {
+                    // 完成即并入已下载索引
+                    setLocalIdx((p2) => {
+                        const mIds = new Set(p2?.modelIds || []), vIds = new Set(p2?.versionIds || []);
+                        for (const t of doneOk) {
+                            if (t.modelId) mIds.add(String(t.modelId));
+                            if (t.versionId) vIds.add(String(t.versionId));
+                        }
+                        return { modelIds: mIds, versionIds: vIds };
+                    });
+                }
+                return next;
+            });
+        };
+        if (e.type === 'download_progress' && e.task) applyTasks([e.task]);
+        else if (e.type === 'downloads' && e.state) {
+            applyTasks([...(e.state.queue || []), e.state.active, ...(e.state.done || [])].filter(Boolean));
+        }
     });
     // 后台补齐的缩略图 → 增量点亮对应卡片
     useFeEvent((e) => { if (e.type === 'thumbs_ready' && e.map) setThumbMap((prev) => ({ ...prev, ...e.map })); });
@@ -443,6 +463,7 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
                                 key={`${it.id}-${it.version?.id}`}
                                 it={it}
                                 downloaded={isDownloaded(it)}
+                                dl={dlMap[String(it.version?.id)] || dlMap['m' + it.id]}
                                 localPath={it?.version?.images?.[0]?.url ? thumbMap[it.version.images[0].url] : undefined}
                                 onOpen={() => openDetail(it.id)}
                                 onQuickDownload={() => quickDownload(it)}
@@ -794,10 +815,11 @@ function DetailDialog(props: {
 // ---------------------------------------------------------------- 卡片(memo:增量更新不重渲整列表)
 
 const ThumbCard = memo(function ThumbCard(props: {
-    it: any; downloaded: boolean; localPath?: string;
+    it: any; downloaded: boolean; localPath?: string; dl?: { percent: number; status: string };
     onOpen: () => void; onQuickDownload: () => void; onThumbReady?: (url: string, path: string) => void;
 }) {
-    const { it, downloaded, localPath, onOpen, onQuickDownload, onThumbReady } = props;
+    const { it, downloaded, localPath, dl, onOpen, onQuickDownload, onThumbReady } = props;
+    const downloading = dl && (dl.status === 'downloading' || dl.status === 'fetching');
     const firstUrl = it?.version?.images?.[0]?.url as string | undefined;
     // 视口预取:进入 可视区+下方~700px(2-3行) 即请求该图;下载完成立即点亮
     const [ownPath, setOwnPath] = useState('');
@@ -854,13 +876,25 @@ const ThumbCard = memo(function ThumbCard(props: {
                 {it.nsfw && (
                     <span className="absolute right-1.5 top-1.5 rounded bg-red-500/85 px-1.5 py-0.5 text-[10px] font-medium text-white">NSFW</span>
                 )}
-                <button
-                    title="下载此版本"
-                    onClick={(e) => { e.stopPropagation(); onQuickDownload(); }}
-                    className="absolute bottom-1.5 right-1.5 z-10 hidden size-8 cursor-pointer items-center justify-center rounded-md bg-emerald-500 text-emerald-950 shadow-md transition-colors hover:bg-emerald-400 group-hover:flex"
-                >
-                    <Download className="size-4" />
-                </button>
+                {downloading ? (
+                    <div className="absolute inset-x-2 bottom-1.5 z-10">
+                        <div className="h-1.5 overflow-hidden rounded-full bg-black/60">
+                            <div className="h-full rounded-full bg-emerald-400 transition-[width] duration-300"
+                                style={{ width: `${dl!.percent}%` }} />
+                        </div>
+                        <div className="mt-0.5 text-center text-[10px] font-medium text-emerald-300 drop-shadow">
+                            {dl!.status === 'fetching' ? '获取信息…' : `${dl!.percent}%`}
+                        </div>
+                    </div>
+                ) : (
+                    <button
+                        title="下载此版本"
+                        onClick={(e) => { e.stopPropagation(); onQuickDownload(); }}
+                        className="absolute bottom-1.5 right-1.5 z-10 hidden size-8 cursor-pointer items-center justify-center rounded-md bg-emerald-500 text-emerald-950 shadow-md transition-colors hover:bg-emerald-400 group-hover:flex"
+                    >
+                        <Download className="size-4" />
+                    </button>
+                )}
             </div>
             <div className="p-2.5">
                 <div className="truncate text-sm font-medium" title={it.name}>{it.name}</div>
