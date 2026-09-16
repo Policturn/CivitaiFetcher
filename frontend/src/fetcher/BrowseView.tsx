@@ -139,6 +139,7 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
             const root = dl.dlRoot || (webuiRoot ? `${webuiRoot}\\models` : '');
             await api().enqueue_download({
                 modelId: it.id, versionId: v.id,
+                modelName: it.name || '', versionName: v.name || '',
                 targetRoot: root, subfolder: dl.dlSubfolder || '',
                 autoCategory: dl.dlAutoCategory !== false, withExtras: dl.dlWithExtras !== false,
                 apiKey, proxy,
@@ -496,6 +497,7 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
                     proxy={proxy}
                     apiKey={apiKey}
                     modelId={detail?.id}
+                    modelName={detail?.name}
                     version={dlVersion}
                     onClose={() => setDlVersion(null)}
                     onQueued={onOpenDownloads}
@@ -514,10 +516,10 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
 
 function DownloadDialog(props: {
     webuiRoot: string; proxy: string; apiKey: string;
-    modelId: number; version: any;
+    modelId: number; version: any; modelName?: string;
     onClose: () => void; onQueued: () => void;
 }) {
-    const { webuiRoot, proxy, apiKey, modelId, version, onClose, onQueued } = props;
+    const { webuiRoot, proxy, apiKey, modelId, version, modelName, onClose, onQueued } = props;
     const [targetRoot, setTargetRoot] = useState(webuiRoot ? `${webuiRoot}\\models` : '');
     const [subfolder, setSubfolder] = useState('');
     const [autoCategory, setAutoCategory] = useState(true);
@@ -535,6 +537,7 @@ function DownloadDialog(props: {
         try {
             await api().enqueue_download({
                 modelId, versionId: version.id,
+                modelName: modelName || '', versionName: version.name || '',
                 targetRoot, subfolder, autoCategory, withExtras,
                 apiKey, proxy,
             });

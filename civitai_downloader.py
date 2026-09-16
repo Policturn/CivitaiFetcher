@@ -130,7 +130,8 @@ def enqueue_download(opts):
         "api_key": opts.get("apiKey", ""), "proxy": opts.get("proxy", ""),
         "status": "queued", "percent": 0, "speed": 0,
         "downloadedMB": 0, "totalMB": 0, "error": "", "category": "",
-        "modelName": "", "versionName": "", "type": "", "targetDir": "",
+        "modelName": str(opts.get("modelName") or ""), "versionName": str(opts.get("versionName") or ""),
+        "type": "", "targetDir": "",
         "cancel": False, "paused": False,
         "_opts": dict(opts),
     }
