@@ -213,7 +213,7 @@ def _bg_fetch_thumbs(todo, on_ready):
     import concurrent.futures
     global _thumb_pool
     if _thumb_pool is None:
-        _thumb_pool = concurrent.futures.ThreadPoolExecutor(max_workers=4)
+        _thumb_pool = concurrent.futures.ThreadPoolExecutor(max_workers=6)
 
     def _with_retry(url, path):
         for attempt in range(3):
@@ -261,7 +261,7 @@ def get_thumbnail_cache(urls, width=450):
     if todo:
         cf.ensure_session()
         if _thumb_pool is None:
-            _thumb_pool = concurrent.futures.ThreadPoolExecutor(max_workers=4)
+            _thumb_pool = concurrent.futures.ThreadPoolExecutor(max_workers=6)
 
         def _with_retry(url, path):
             for attempt in range(3):

@@ -731,8 +731,7 @@ function DetailDialog(props: {
                                             <img
                                                 key={im.url}
                                                 src={imgMap[im.url] ? fileUrl(imgMap[im.url]) : im.url}
-                                                alt="" loading="lazy"
-                                                className="h-28 shrink-0 rounded-md border border-border object-cover"
+                                                alt="" className="h-28 shrink-0 rounded-md border border-border object-cover"
                                             />
                                         ))}
                                     </div>
@@ -797,7 +796,7 @@ const ThumbCard = memo(function ThumbCard(props: {
         >
             <div className="relative aspect-[4/5] w-full overflow-hidden bg-input/40">
                 {src ? (
-                    <img src={src} alt="" loading="lazy" decoding="async" className="size-full object-cover" onError={onImgError} />
+                    <img src={src} alt="" decoding="async" className="size-full object-cover" onError={onImgError} />
                 ) : firstUrl ? (
                     <div className="flex size-full items-center justify-center bg-card">
                         <Loader2 className="size-4 animate-spin text-muted-foreground" />
