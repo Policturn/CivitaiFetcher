@@ -223,24 +223,37 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
         </div>
     );
 
-    // 浏览筛选持久化:启动恢复 + 变更防抖保存
+    // 浏览筛选持久化:启动恢复(桥就绪轮询——挂载可能早于 pywebview 注入)+ 变更即存
     const [initDone, setInitDone] = useState(false);
     useEffect(() => {
-        api()?.get_initial?.().then((s: any) => {
-            const b = s?.browse || {};
-            // 旧配置里的 LyCORIS 独立页签并入 Lora
-            if (b.typeTab === 'LoCon') b.typeTab = 'LORA';
-            if (b.typeTab !== undefined) setTypeTab(b.typeTab);
-            if (Array.isArray(b.baseModels)) setBaseModels(b.baseModels);
-            if (b.tag !== undefined) setTag(b.tag);
-            if (b.creator) { setCreator(b.creator); setCreatorInput(b.creator); }
-            if (b.sort) setSort(b.sort);
-            if (b.customStart) setCustomStart(b.customStart);
-            if (b.customEnd) setCustomEnd(b.customEnd);
-            if (b.period) setPeriod(b.period);
-            if (b.hideNsfw !== undefined) setHideNsfw(!!b.hideNsfw);
-            if (b.sidebarOpen !== undefined) setSidebarOpen(!!b.sidebarOpen);
-        }).finally(() => setInitDone(true));
+        let cancelled = false;
+        const restore = () => {
+            const a = api();
+            if (!a) { setTimeout(restore, 120); return; }
+            a.get_initial?.().then((s: any) => {
+                (window as any).__rlog = ((window as any).__rlog || '') + '|got:' + JSON.stringify(s?.browse).slice(0, 140);
+                if (cancelled) { (window as any).__rlog += '|cancelled'; return; }
+                const b = s?.browse || {};
+                // 旧配置里的 LyCORIS 独立页签并入 Lora
+                if (b.typeTab === 'LoCon') b.typeTab = 'LORA';
+                if (b.typeTab !== undefined) setTypeTab(b.typeTab);
+                if (Array.isArray(b.baseModels)) setBaseModels(b.baseModels);
+                if (b.tag !== undefined) setTag(b.tag);
+                if (b.creator) { setCreator(b.creator); setCreatorInput(b.creator); }
+                if (b.sort) setSort(b.sort);
+                if (b.customStart) setCustomStart(b.customStart);
+                if (b.customEnd) setCustomEnd(b.customEnd);
+                if (b.period) setPeriod(b.period);
+                if (b.hideNsfw !== undefined) setHideNsfw(!!b.hideNsfw);
+                if (b.sidebarOpen !== undefined) setSidebarOpen(!!b.sidebarOpen);
+                (window as any).__rlog += '|applied:typeTab=' + b.typeTab;
+            }).catch((e: any) => {
+                (window as any).__rlog = ((window as any).__rlog || '') + '|catch:' + String(e).slice(0, 60);
+                if (!cancelled) setTimeout(restore, 300);
+            }).finally(() => { if (!cancelled) setInitDone(true); });
+        };
+        restore();
+        return () => { cancelled = true; };
     }, []);
     useEffect(() => {
         // 变更即存:防抖会被"改完立刻关窗"截胡,桥调用很轻,直接落盘
