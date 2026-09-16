@@ -141,6 +141,7 @@ class Api:
             "types": data.get("types", {}),
             "options": data.get("options", {}),
             "defaults": data.get("defaults", {}),
+            "pinned_folders": data.get("pinned_folders", {}),
             "demo": DEMO_MODE,
             **({"demoFolder": r"C:\SD-WebUI\models\Lora(演示)",
                 "demoPlan": demo.preview_reorganize("", fast=True)} if DEMO_MODE else {}),
@@ -290,6 +291,9 @@ class Api:
 
     # ---------------- 本地重分类(D)
 
+    def preview_reorganize_pinned(self, opts):
+        return cr.preview_reorganize_pinned()
+
     def preview_reorganize(self, opts):
         if DEMO_MODE:
             return demo.preview_reorganize(opts.get("folder", ""))
@@ -335,6 +339,10 @@ def _save_settings(opts):
         old.setdefault("browse", {}).update(opts["browse"])
     if isinstance(opts.get("defaults"), dict):
         old.setdefault("defaults", {}).update(opts["defaults"])
+    if isinstance(opts.get("pinned_folders"), dict):
+        # None/空串 = 解除绑定
+        pf = {k: v for k, v in opts["pinned_folders"].items() if v}
+        old["pinned_folders"] = pf
     for key in ("types", "options"):
         if key in opts:
             old[key] = opts[key]

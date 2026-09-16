@@ -37,6 +37,27 @@ def _companion_files(base):
     return files
 
 
+def _pinned_folders():
+    """设置里的分类专属文件夹:{分类中文名: 绝对路径}"""
+    import json as _json
+    try:
+        path = os.path.join(os.path.dirname(cf.HASH_CACHE_FILE), "gui_settings.json")
+        with open(path, "r", encoding="utf-8") as f:
+            data = _json.load(f) or {}
+        return {k: v for k, v in (data.get("pinned_folders") or {}).items()
+                if isinstance(v, str) and os.path.isdir(v)}
+    except (OSError, ValueError):
+        return {}
+
+
+def _target_dir_for(category, base_root):
+    """分类目标目录:绑定了专属文件夹 → 专属夹;否则 base_root/分类名(不新建目录)"""
+    pinned = _pinned_folders()
+    if category in pinned:
+        return pinned[category], True
+    return os.path.join(base_root, category), False
+
+
 def _read_category(info_path):
     """返回 (folder_name|None, hit|None, has_info)"""
     try:
@@ -74,8 +95,8 @@ def preview_reorganize(folder):
             if cat is None:
                 no_hit.append(path)
                 continue
-            cat_dir = os.path.join(folder, cat)
-            if os.path.normcase(root) == os.path.normcase(cat_dir):
+            cat_dir, _pinned = _target_dir_for(cat, folder)
+            if os.path.normcase(os.path.realpath(root)) == os.path.normcase(os.path.realpath(cat_dir)):
                 already_ok += 1
                 continue
             base_name = os.path.splitext(fn)[0]
@@ -95,15 +116,69 @@ def preview_reorganize(folder):
     for old in sorted(list(_plans.keys()))[:-5]:
         _plans.pop(old, None)
 
+    pinned = _pinned_folders()
     return {
         "planId": plan_id,
         "folder": folder,
+        "pinnedUsed": {k: v for k, v in pinned.items()},
         "moves": [{"src": m["src"], "category": m["category"], "hit": m["hit"],
                    "targetDir": m["targetDir"],
                    "fileCount": len(m["files"]),
                    "fileNames": [os.path.basename(d) for _, d in m["files"]]}
                   for m in moves],
         "counts": {"moves": len(moves), "alreadyOk": already_ok,
+                   "noInfo": len(no_info), "noHit": len(no_hit)},
+    }
+
+
+def preview_reorganize_pinned():
+    """重整所有专属文件夹:把专属夹里的模型按当前元数据重新归位
+    (规则变了/绑定了新夹后,把放错的挪到正确专属夹)。"""
+    pinned = _pinned_folders()
+    if not pinned:
+        return {"error": "尚未绑定任何分类专属文件夹(设置 → 分类专属文件夹)"}
+
+    all_moves = []
+    seen_paths = set()
+    no_info, no_hit, already_ok = [], [], 0
+    for root in pinned.values():
+        for dp, _, fns in os.walk(root):
+            for fn in fns:
+                if os.path.splitext(fn)[1].lower() not in MODEL_EXTS:
+                    continue
+                path = os.path.join(dp, fn)
+                key = os.path.normcase(os.path.realpath(path))
+                if key in seen_paths:
+                    continue
+                seen_paths.add(key)
+                base = os.path.splitext(path)[0]
+                info_path = base + ".civitai.info"
+                cat, hit = _read_category(info_path)[:2]
+                if not os.path.isfile(info_path):
+                    no_info.append(path)
+                    continue
+                if cat is None:
+                    no_hit.append(path)
+                    continue
+                cat_dir, _ = _target_dir_for(cat, root)
+                if os.path.normcase(os.path.realpath(dp)) == os.path.normcase(os.path.realpath(cat_dir)):
+                    already_ok += 1
+                    continue
+                dst_base = os.path.join(cat_dir, os.path.splitext(fn)[0])
+                companions = [path] + _companion_files(base)
+                file_pairs = [(p2, dst_base + p2[len(base):]) for p2 in companions]
+                all_moves.append({"src": path, "category": cat, "hit": hit or "",
+                                  "targetDir": cat_dir, "files": file_pairs})
+
+    plan_id = str(int(time.time() * 1000)) + "p"
+    _plans[plan_id] = {"folder": "专属文件夹集合", "moves": all_moves, "created": time.time()}
+    return {
+        "planId": plan_id, "folder": "专属文件夹集合", "pinnedUsed": pinned,
+        "moves": [{"src": m["src"], "category": m["category"], "hit": m["hit"],
+                   "targetDir": m["targetDir"], "fileCount": len(m["files"]),
+                   "fileNames": [os.path.basename(d) for _, d in m["files"]]}
+                  for m in all_moves],
+        "counts": {"moves": len(all_moves), "alreadyOk": already_ok,
                    "noInfo": len(no_info), "noHit": len(no_hit)},
     }
 

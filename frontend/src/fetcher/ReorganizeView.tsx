@@ -48,6 +48,14 @@ export default function ReorganizeView() {
         if (dir) setFolder(Array.isArray(dir) ? dir[0] : dir);
     };
 
+    const doPreviewPinned = async () => {
+        setBusy('preview'); setResult(null); setProgress(null);
+        try {
+            const res = await api().preview_reorganize_pinned({});
+            setPlan(res);
+        } finally { setBusy(''); }
+    };
+
     const doPreview = async () => {
         setBusy('preview'); setResult(null); setProgress(null);
         try {
@@ -89,6 +97,10 @@ export default function ReorganizeView() {
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setMappingOpen((v) => !v)}>
                     {mappingOpen ? '收起映射表' : '文件夹映射表'}
+                </Button>
+                <span className="mx-1 h-4 w-px bg-border" />
+                <Button variant="outline" size="sm" disabled={!!busy} onClick={doPreviewPinned}>
+                    重整专属文件夹
                 </Button>
             </div>
 

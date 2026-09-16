@@ -94,6 +94,7 @@ export default function App() {
     const [demo, setDemo] = useState(false);
     const [apiSource, setApiSource] = useState('com');
     const [defaults, setDefaults] = useState<DownloadDefaults>({ dlRoot: '', dlSubfolder: '', dlAutoCategory: true, dlWithExtras: true });
+    const [pinned, setPinned] = useState<Record<string, string>>({});
     const demoAutoRan = useRef(false);
     const logBox = useRef<HTMLDivElement>(null);
 
@@ -130,6 +131,7 @@ export default function App() {
                         setDemo(!!s.demo);
                         if (s?.api_source) setApiSource(String(s.api_source));
                         if (s?.defaults) setDefaults((d) => ({ ...d, ...s.defaults }));
+                        if (s?.pinned_folders) setPinned(s.pinned_folders);
                         if (s?.browse?.view) setView(String(s.browse.view));
                         setWebuiRoot(s.webui_root ?? webuiRoot);
                         setProxy(s.proxy ?? '');
@@ -387,7 +389,7 @@ export default function App() {
             <div className={cn('flex min-h-0 flex-1 flex-col', view !== 'browse' && 'hidden')}>
                 <BrowseView
                     webuiRoot={webuiRoot} proxy={proxy} apiKey={apiKey} apiSource={apiSource}
-                    defaults={defaults}
+                    defaults={defaults} pinned={pinned}
                     onOpenDownloads={() => setView('downloads')}
                 />
             </div>
@@ -401,12 +403,13 @@ export default function App() {
             <div className={cn('flex min-h-0 flex-1 flex-col', view !== 'settings' && 'hidden')}>
                 <SettingsView
                     proxy={proxy} apiKey={apiKey} apiSource={apiSource} webuiRoot={webuiRoot}
-                    defaults={defaults}
+                    defaults={defaults} pinned={pinned}
                     onSaved={(patch) => {
                         if (patch.proxy !== undefined) setProxy(patch.proxy);
                         if (patch.apiKey !== undefined) setApiKey(patch.apiKey);
                         if (patch.apiSource !== undefined) setApiSource(patch.apiSource);
                         if (patch.defaults) setDefaults(patch.defaults);
+                        if (patch.pinned) setPinned(patch.pinned);
                     }}
                 />
             </div>

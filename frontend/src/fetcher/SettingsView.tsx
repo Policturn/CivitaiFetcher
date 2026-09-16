@@ -17,13 +17,17 @@ export type DownloadDefaults = {
     dlWithExtras: boolean;
 };
 
+export const CATEGORIES = ['角色', '画风', '服装', '姿势', '概念', '名人', '背景',
+    '动物', '载具', '建筑', '物品', '工具', '动作', '素材'];
+
 export default function SettingsView(props: {
     proxy: string; apiKey: string; apiSource: string;
     webuiRoot: string;
     defaults: DownloadDefaults;
-    onSaved: (patch: { proxy?: string; apiKey?: string; apiSource?: string; defaults?: DownloadDefaults }) => void;
+    pinned: Record<string, string>;
+    onSaved: (patch: { proxy?: string; apiKey?: string; apiSource?: string; defaults?: DownloadDefaults; pinned?: Record<string, string> }) => void;
 }) {
-    const { proxy, apiKey, apiSource, webuiRoot, defaults, onSaved } = props;
+    const { proxy, apiKey, apiSource, webuiRoot, defaults, pinned, onSaved } = props;
     const [keyInput, setKeyInput] = useState(apiKey);
     const [proxyInput, setProxyInput] = useState(proxy);
     const [source, setSource] = useState(apiSource || 'com');
@@ -33,6 +37,13 @@ export default function SettingsView(props: {
     const [show, setShow] = useState(false);
     const [result, setResult] = useState('');
     const [busy, setBusy] = useState('');
+    const [pin, setPin] = useState<Record<string, string>>({ ...pinned });
+    useEffect(() => { setPin({ ...pinned }); }, [pinned]);
+
+    const browsePin = async (cat: string) => {
+        const dir = await api().choose_folder();
+        if (dir) setPin((m) => ({ ...m, [cat]: Array.isArray(dir) ? dir[0] : dir }));
+    };
 
     useEffect(() => { setKeyInput(apiKey); setProxyInput(proxy); }, [apiKey, proxy]);
     useEffect(() => {
@@ -60,7 +71,8 @@ export default function SettingsView(props: {
             const nextDefaults = { ...dl, dlRoot: dl.dlRoot || (webuiRoot ? `${webuiRoot}\\models` : '') };
             await api().save_settings({ apiKey: keyInput.trim(), proxy: proxyInput.trim(), api_source: source });
             await api().save_settings({ defaults: nextDefaults });
-            onSaved({ proxy: proxyInput.trim(), apiKey: keyInput.trim(), apiSource: source, defaults: nextDefaults });
+            await api().save_settings({ pinned_folders: pin });
+            onSaved({ proxy: proxyInput.trim(), apiKey: keyInput.trim(), apiSource: source, defaults: nextDefaults, pinned: pin });
             setResult('✓ 已保存');
         } finally { setBusy(''); }
     };
@@ -126,6 +138,22 @@ export default function SettingsView(props: {
                 <Row title="连同附带文件" hint="VAE / 配置等附属文件一起下载">
                     <Switch checked={dl.dlWithExtras} onCheckedChange={(c) => setDl((d) => ({ ...d, dlWithExtras: !!c }))} />
                 </Row>
+
+                <div className="mb-2 mt-8 text-xs font-medium text-muted-foreground">分类专属文件夹(整理时归入绑定目录,不再新建分类子目录)</div>
+                {CATEGORIES.map((cat) => (
+                    <Row key={cat} title={cat} hint={pin[cat] ? undefined : '未绑定(用 根目录/分类名)'}>
+                        <input
+                            className={`${inputCls} h-9 min-w-0 flex-1 text-sm`}
+                            value={pin[cat] || ''}
+                            onChange={(e) => setPin((m) => ({ ...m, [cat]: e.target.value }))}
+                            placeholder="选择或粘贴文件夹路径"
+                        />
+                        <Button variant="ghost" size="icon" title="浏览" onClick={() => browsePin(cat)}><FolderOpen /></Button>
+                        {pin[cat] && (
+                            <Button variant="ghost" size="sm" onClick={() => setPin((m) => { const n = { ...m }; delete n[cat]; return n; })}>解除</Button>
+                        )}
+                    </Row>
+                ))}
 
                 {result && (
                     <div className={`mt-6 rounded-lg px-3 py-2 text-xs ${result.startsWith('✓') ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>{result}</div>
