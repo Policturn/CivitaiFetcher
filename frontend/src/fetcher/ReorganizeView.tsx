@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { FolderOpen, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectTrigger, SelectValue, SelectPopup, SelectItem } from '@/components/ui/select';
 import { api, inputCls, useFeEvent } from './api';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -14,6 +16,14 @@ export default function ReorganizeView() {
     const [canUndo, setCanUndo] = useState(false);
     const [mapping, setMapping] = useState<Record<string, string> | null>(null);
     const [mappingOpen, setMappingOpen] = useState(false);
+    // 按基模筛不兼容
+    const [bases, setBases] = useState<Array<{ key: string; label: string }>>([]);
+    const [baseKey, setBaseKey] = useState('wai_ill_v16');
+    const [lvIncompat, setLvIncompat] = useState(true);
+    const [lvWeak, setLvWeak] = useState(true);
+    const [lvReduced, setLvReduced] = useState(false);
+    const [lvMixed, setLvMixed] = useState(false);
+    const [quarantine, setQuarantine] = useState('');
 
     useEffect(() => {
         let cancelled = false;
@@ -33,6 +43,14 @@ export default function ReorganizeView() {
         boot();
         return () => { cancelled = true; };
     }, []);
+    useEffect(() => {
+        const pull = () => {
+            const a = api();
+            if (!a) { setTimeout(pull, 150); return; }
+            a.get_compat_bases?.().then((list: any) => { if (list?.length) setBases(list); }).catch(() => {});
+        };
+        pull();
+    }, []);
 
     useFeEvent((e) => {
         if (e.type === 'reorg_progress') setProgress([e.done, e.total]);
@@ -46,6 +64,28 @@ export default function ReorganizeView() {
     const browse = async () => {
         const dir = await api().choose_folder();
         if (dir) setFolder(Array.isArray(dir) ? dir[0] : dir);
+    };
+
+    const browseQuarantine = async () => {
+        const dir = await api().choose_folder();
+        if (dir) setQuarantine(Array.isArray(dir) ? dir[0] : dir);
+    };
+
+    const doScanCompat = async () => {
+        const levels: string[] = [];
+        if (lvIncompat) levels.push('incompat');
+        if (lvWeak) levels.push('weak');
+        if (lvReduced) levels.push('reduced');
+        if (lvMixed) levels.push('mixed');
+        if (!levels.length) { setResult({ errors: ['至少勾选一个等级'] }); return; }
+        setBusy('compat'); setResult(null); setProgress(null);
+        try {
+            const res = await api().scan_by_compat({
+                baseKey, levels,
+                scanRoot: folder, targetFolder: quarantine,
+            });
+            setPlan(res);
+        } finally { setBusy(''); }
     };
 
     const doPreviewPinned = async () => {
@@ -102,6 +142,37 @@ export default function ReorganizeView() {
                 <Button variant="outline" size="sm" disabled={!!busy} onClick={doPreviewPinned}>
                     重整专属文件夹
                 </Button>
+            </div>
+
+            {/* 按基模筛不兼容 */}
+            <div className="rounded-lg border border-border bg-card p-3">
+                <div className="mb-2.5 text-xs font-medium text-muted-foreground">按基模筛不兼容(自练/无信息模型自动排除)</div>
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className="text-muted-foreground">基准基模</span>
+                    <Select value={baseKey} onValueChange={(v) => setBaseKey(String(v))}
+                        items={bases.map((b) => ({ label: b.label, value: b.key }))}>
+                        <SelectTrigger size="sm" className="w-44" aria-label="基准基模"><SelectValue /></SelectTrigger>
+                        <SelectPopup>
+                            {bases.map((b) => <SelectItem key={b.key} value={b.key}>{b.label}</SelectItem>)}
+                        </SelectPopup>
+                    </Select>
+                    <span className="ml-2 text-muted-foreground">筛出</span>
+                    <label className="flex cursor-pointer items-center gap-1.5"><Checkbox checked={lvIncompat} onCheckedChange={(c) => setLvIncompat(!!c)} />不兼容</label>
+                    <label className="flex cursor-pointer items-center gap-1.5"><Checkbox checked={lvWeak} onCheckedChange={(c) => setLvWeak(!!c)} />偏弱</label>
+                    <label className="flex cursor-pointer items-center gap-1.5"><Checkbox checked={lvReduced} onCheckedChange={(c) => setLvReduced(!!c)} />打折</label>
+                    <label className="flex cursor-pointer items-center gap-1.5"><Checkbox checked={lvMixed} onCheckedChange={(c) => setLvMixed(!!c)} />混血待测</label>
+                </div>
+                <div className="mt-2.5 flex items-center gap-2">
+                    <input className={`${inputCls} h-8 min-w-0 flex-1 text-xs`}
+                        value={quarantine} onChange={(e) => setQuarantine(e.target.value)}
+                        placeholder="待测文件夹(模型将移入此处,可撤销)" />
+                    <Button variant="ghost" size="icon-sm" title="浏览" onClick={browseQuarantine}><FolderOpen /></Button>
+                    <Button variant="outline" size="sm"
+                        disabled={!folder || !quarantine || !!busy || !baseKey}
+                        onClick={doScanCompat}>
+                        {busy === 'compat' ? '扫描中…' : '扫描兼容性'}
+                    </Button>
+                </div>
             </div>
 
             {mappingOpen && mapping && (

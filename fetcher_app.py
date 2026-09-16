@@ -297,6 +297,15 @@ class Api:
 
     # ---------------- 本地重分类(D)
 
+    def scan_by_compat(self, opts):
+        return cr.scan_by_compat(opts.get("baseKey") or "", opts.get("levels") or [],
+                                 opts.get("scanRoot") or "", opts.get("targetFolder") or "")
+
+    def get_compat_bases(self):
+        import civitai_compat as cx
+        bases = cx.load_bases()
+        return [{"key": k, "label": v.get("label") or k} for k, v in bases.items()]
+
     def preview_reorganize_pinned(self, opts):
         return cr.preview_reorganize_pinned()
 

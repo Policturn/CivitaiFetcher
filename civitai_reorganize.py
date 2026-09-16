@@ -135,6 +135,76 @@ def preview_reorganize(folder):
     }
 
 
+def scan_by_compat(base_key, levels, scan_root, target_folder):
+    """按基模兼容性扫描:命中勾选等级的模型整组移入用户指定的待测文件夹。
+    自练(骨架)/无信息/无法判定的自动排除。返回与 preview_reorganize 同构的 plan,
+    移动/撤销复用 apply_reorganize / undo_last_reorganize。"""
+    import civitai_compat as cx
+
+    bases = cx.load_bases()
+    if base_key not in bases:
+        return {"error": "未知基准基模: " + base_key}
+    if not target_folder or not os.path.isdir(target_folder):
+        return {"error": "待测文件夹不存在,请先选择或创建"}
+    scan_root = os.path.abspath(scan_root)
+    if not os.path.isdir(scan_root):
+        return {"error": "扫描目录不存在"}
+
+    wanted = [lv for lv in levels if lv in cx.LEVEL_ZH]
+    moves = []
+    counts = {"moves": 0, "excluded_skeleton": 0, "excluded_unknown": 0, "by_level": {}}
+    for dp, _, fns in os.walk(scan_root):
+        for fn in fns:
+            if os.path.splitext(fn)[1].lower() not in MODEL_EXTS:
+                continue
+            path = os.path.join(dp, fn)
+            base = os.path.splitext(path)[0]
+            info_path = base + ".civitai.info"
+            try:
+                with open(info_path, "r", encoding="utf-8") as f:
+                    info = json.load(f)
+            except (OSError, ValueError):
+                counts["excluded_unknown"] += 1
+                continue
+            if info.get("skeleton_file"):
+                counts["excluded_skeleton"] += 1
+                continue
+            real = ""
+            for im in (info.get("images") or []):
+                m = im.get("meta") or {}
+                real = m.get("Model") or m.get("baseModel") or ""
+                if real:
+                    break
+            level, basis = cx.judge(bases, base_key, real, info.get("baseModel"))
+            if level == "unknown":
+                counts["excluded_unknown"] += 1
+                continue
+            if level not in wanted:
+                continue
+            dst_base = os.path.join(target_folder, os.path.splitext(fn)[0])
+            companions = [path] + _companion_files(base)
+            file_pairs = [(p2, dst_base + p2[len(base):]) for p2 in companions]
+            moves.append({
+                "src": path,
+                "category": cx.LEVEL_ZH.get(level, level),
+                "hit": "实测:" + (real[:24] or "-") + " / 标注:" + str(info.get("baseModel") or "-")[:14],
+                "targetDir": target_folder, "files": file_pairs,
+            })
+            counts["by_level"][level] = counts["by_level"].get(level, 0) + 1
+
+    plan_id = str(int(time.time() * 1000)) + "c"
+    _plans[plan_id] = {"folder": scan_root, "moves": moves, "created": time.time()}
+    counts["moves"] = len(moves)
+    return {
+        "planId": plan_id, "folder": scan_root,
+        "moves": [{"src": m["src"], "category": m["category"], "hit": m["hit"],
+                   "targetDir": m["targetDir"], "fileCount": len(m["files"]),
+                   "fileNames": [os.path.basename(d) for _, d in m["files"]]}
+                  for m in moves],
+        "counts": counts,
+    }
+
+
 def preview_reorganize_pinned():
     """重整所有专属文件夹:把专属夹里的模型按当前元数据重新归位
     (规则变了/绑定了新夹后,把放错的挪到正确专属夹)。"""
