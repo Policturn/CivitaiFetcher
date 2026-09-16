@@ -7,7 +7,8 @@ import { api, inputCls, useFeEvent } from './api';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-export default function ReorganizeView() {
+export default function ReorganizeView(props: { webuiRoot?: string }) {
+    const { webuiRoot } = props;
     const [folder, setFolder] = useState('');
     const [plan, setPlan] = useState<any>(null);
     const [busy, setBusy] = useState('');
@@ -24,6 +25,7 @@ export default function ReorganizeView() {
     const [lvReduced, setLvReduced] = useState(false);
     const [lvMixed, setLvMixed] = useState(false);
     const [quarantine, setQuarantine] = useState('');
+    const [compatRoot, setCompatRoot] = useState('');
 
     useEffect(() => {
         let cancelled = false;
@@ -43,6 +45,10 @@ export default function ReorganizeView() {
         boot();
         return () => { cancelled = true; };
     }, []);
+    useEffect(() => {
+        if (!compatRoot && webuiRoot) setCompatRoot(`${webuiRoot}\models\Lora`);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [webuiRoot]);
     useEffect(() => {
         const pull = () => {
             const a = api();
@@ -82,7 +88,7 @@ export default function ReorganizeView() {
         try {
             const res = await api().scan_by_compat({
                 baseKey, levels,
-                scanRoot: folder, targetFolder: quarantine,
+                scanRoot: compatRoot || folder, targetFolder: quarantine,
             });
             setPlan(res);
         } finally { setBusy(''); }
@@ -162,13 +168,20 @@ export default function ReorganizeView() {
                     <label className="flex cursor-pointer items-center gap-1.5"><Checkbox checked={lvReduced} onCheckedChange={(c) => setLvReduced(!!c)} />打折</label>
                     <label className="flex cursor-pointer items-center gap-1.5"><Checkbox checked={lvMixed} onCheckedChange={(c) => setLvMixed(!!c)} />混血待测</label>
                 </div>
-                <div className="mt-2.5 flex items-center gap-2">
+                <div className="mt-2 flex items-center gap-2">
+                    <span className="shrink-0 text-muted-foreground">扫描目录</span>
+                    <input className={`${inputCls} h-8 min-w-0 flex-1 text-xs`}
+                        value={compatRoot} onChange={(e) => setCompatRoot(e.target.value)}
+                        placeholder="要扫描的模型目录" />
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                    <span className="shrink-0 text-muted-foreground">待测文件夹</span>
                     <input className={`${inputCls} h-8 min-w-0 flex-1 text-xs`}
                         value={quarantine} onChange={(e) => setQuarantine(e.target.value)}
-                        placeholder="待测文件夹(模型将移入此处,可撤销)" />
+                        placeholder="模型将移入此处(可撤销)" />
                     <Button variant="ghost" size="icon-sm" title="浏览" onClick={browseQuarantine}><FolderOpen /></Button>
                     <Button variant="outline" size="sm"
-                        disabled={!folder || !quarantine || !!busy || !baseKey}
+                        disabled={!(compatRoot || folder) || !quarantine || !!busy || !baseKey}
                         onClick={doScanCompat}>
                         {busy === 'compat' ? '扫描中…' : '扫描兼容性'}
                     </Button>

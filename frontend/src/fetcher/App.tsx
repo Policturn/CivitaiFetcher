@@ -405,7 +405,7 @@ export default function App() {
                 <DownloadsView />
             </div>
             <div className={cn('flex min-h-0 flex-1 flex-col', view !== 'reorganize' && 'hidden')}>
-                <ReorganizeView />
+                <ReorganizeView webuiRoot={webuiRoot} />
             </div>
 
             <div className={cn('flex min-h-0 flex-1 flex-col', view !== 'settings' && 'hidden')}>
