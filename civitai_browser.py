@@ -53,6 +53,7 @@ DEFAULT_CATEGORY_MAP = {
     "action": "动作", "assets": "素材",
     # Civitai 部分模型用单数形态的标签(实测 pose 模型有只带单数的)
     "pose": "姿势", "object": "物品", "building": "建筑", "asset": "素材",
+    "animals": "动物",
 }
 # Civitai type → 插件/扫描器 type 键(建档与默认目录映射共用)
 TYPE_TO_CF = {"LORA": "lora", "LoCon": "lora", "DoRA": "lora",
@@ -147,8 +148,8 @@ def _get(url, params=None, api_key=""):
                 resp.close()
         code = resp.status_code
         resp.close()
-        if code in (401, 403, 404):
-            raise RuntimeError(f"http_{code}")
+        if code in (400, 401, 403, 404, 422):
+            raise RuntimeError(f"http_{code}")  # 确定性错误:重试无意义
         if retries >= 5:
             raise RuntimeError(f"http_{code}")
         time.sleep(3 + ((retries >> 1) ** 2))

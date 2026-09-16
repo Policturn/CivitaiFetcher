@@ -709,7 +709,8 @@ def run_scan(args):
 
     folders = build_folders(args.webui_root)
     FOLDERS_ROOT = args.webui_root
-    types = [t.strip() for t in args.types.split(",") if t.strip()]
+    raw_types = args.types if isinstance(args.types, list) else [args.types]
+    types = [t.strip() for entry in raw_types for t in str(entry).split(",") if t.strip()]
     models = collect_models(folders, types)
 
     out(f"共发现 {len(models)} 个模型文件({', '.join(types)})")
@@ -732,6 +733,10 @@ def run_scan(args):
 
     start = time.time()
     done = 0
+    # 统计/报告按次重置(GUI 同进程多次扫描不得累积历史值)
+    for k in stats:
+        stats[k] = 0
+    report.clear()
     for filepath, model_type in models:
         if should_stop():
             out("⏹ 已停止(本次进度已记入报告)")
