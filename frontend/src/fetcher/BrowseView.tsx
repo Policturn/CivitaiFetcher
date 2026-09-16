@@ -68,6 +68,7 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
     const [dlMap, setDlMap] = useState<Record<string, { percent: number; status: string }>>({});
     const [thumbMap, setThumbMap] = useState<Record<string, string>>({});
     const reqSeq = useRef(0);
+    const loadedOnce = useRef(false);  // 首批结果到位后不再显示骨架,避免空态↔骨架闪烁
     const sentinel = useRef<HTMLDivElement>(null);
 
     // 每页卡片缩略图 → 本地缓存(绕开 WebView2 系统代理)
@@ -185,6 +186,7 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
             if (seq !== reqSeq.current) return;
             setItems((prev) => (replace ? res.items : [...prev, ...res.items]));
             setCursor(res.nextCursor || undefined);
+            loadedOnce.current = true;
         } catch (e: any) {
             if (seq === reqSeq.current) setError(String(e?.message || e).replace('http_', 'HTTP ').replace(/^(TypeError: )?Cannot read properties of null.*/, '后端未就绪'));
         } finally {
@@ -437,7 +439,7 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
                                 onThumbReady={onThumbReady}
                             />
                         ))}
-                        {loading && !shown.length && Array.from({ length: 8 }).map((_, i) => (
+                        {loading && !loadedOnce.current && Array.from({ length: 8 }).map((_, i) => (
                             <div key={`sk${i}`} className="overflow-hidden rounded-lg border border-border bg-card">
                                 <div className="aspect-[4/5] w-full animate-pulse bg-input/40" />
                                 <div className="p-2.5">
