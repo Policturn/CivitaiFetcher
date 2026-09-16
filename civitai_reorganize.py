@@ -66,9 +66,13 @@ def _read_category(info_path):
     except (OSError, ValueError):
         return None, None, False
     if info.get("skeleton_file"):
+        force = info.get("forceCategory")
+        if force and str(force).strip():
+            return str(force).strip(), "强制分类", True
         return None, None, True
     model = info.get("model") or {}
-    return cb.resolve_category(model.get("tags"), model.get("type") or "")
+    return cb.resolve_category(model.get("tags"), model.get("type") or "",
+                               force=info.get("forceCategory"))
 
 
 def preview_reorganize(folder):

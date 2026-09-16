@@ -95,10 +95,14 @@ def save_category_folders(mapping):
 CATEGORY_LOW_PRIORITY = {"concept"}
 
 
-def resolve_category(tags, model_type):
+def resolve_category(tags, model_type, force=None):
     """tags 命中大类表 → (中文文件夹名, 命中标签);未命中 → (英文标签原样, 标签);
     完全未命中 → (None, None) 由调用方决定留原地或用 type 兜底。
-    优先级:非让位分类按 tags 首个命中;让位分类(概念)仅在无其他分类时生效。"""
+    优先级:forceCategory(强制分类,.civitai.info 顶层,编辑器可写)>
+      非让位分类按 tags 首个命中>让位分类(概念)仅在无其他分类时生效。
+    force 值为分类名(如"画风")时同样吃专属文件夹绑定。"""
+    if force and str(force).strip():
+        return str(force).strip(), "强制分类"
     mapping = load_category_folders()
     fallback = None
     for tag in tags or []:
