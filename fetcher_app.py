@@ -254,9 +254,14 @@ class Api:
         return cb.check_api_key(opts.get("apiKey", ""), proxy=opts.get("proxy", ""))
 
     def save_settings(self, opts):
-        _save_settings({"proxy": opts.get("proxy", ""),
-                        "api_key": opts.get("apiKey", ""),
-                        "api_source": opts.get("api_source", "")})
+        payload = {"proxy": opts.get("proxy", ""),
+                   "api_key": opts.get("apiKey", ""),
+                   "api_source": opts.get("api_source", "")}
+        if isinstance(opts.get("defaults"), dict):
+            payload["defaults"] = opts["defaults"]
+        if isinstance(opts.get("pinned_folders"), dict):
+            payload["pinned_folders"] = opts["pinned_folders"]
+        _save_settings(payload)
         return True
 
     def save_browse(self, browse):
