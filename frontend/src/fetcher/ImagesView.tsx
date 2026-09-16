@@ -34,6 +34,8 @@ export default function ImagesView(props: { proxy: string; apiKey: string; onOpe
     const [error, setError] = useState('');
     const [detail, setDetail] = useState<Img | null>(null);
     const [relModel, setRelModel] = useState<any>(null);
+    const [genMeta, setGenMeta] = useState<any>(null);
+    const [metaBusy, setMetaBusy] = useState(false);
     const [copied, setCopied] = useState('');
     const reqSeq = useRef(0);
     const loadedOnce = useRef(false);
@@ -79,10 +81,23 @@ export default function ImagesView(props: { proxy: string; apiKey: string; onOpe
         return () => ob.disconnect();
     }, [cursor, loading, load]);
 
+    const readMeta = async (it: Img) => {
+        setMetaBusy(true);
+        setGenMeta(null);
+        try {
+            const m = await api().read_image_meta({ url: it.url, apiKey, proxy });
+            setGenMeta(m);
+        } catch (e: any) {
+            setGenMeta({ ok: false, error: String(e?.message || e) });
+        } finally { setMetaBusy(false); }
+    };
+
     const openDetail = async (it: Img) => {
         setDetail(it);
         setRelModel(null);
+        setGenMeta(null);
         setCopied('');
+        readMeta(it);
         // 关联模型(触发词参考)
         const vids = it.modelVersionIds || [];
         if (vids.length && api()) {
@@ -185,6 +200,59 @@ export default function ImagesView(props: { proxy: string; apiKey: string; onOpe
                                 {detail.createdAt && <span>{detail.createdAt}</span>}
                                 {detail.reactions > 0 && <span>♥ {detail.reactions}</span>}
                             </div>
+                            {genMeta?.ok && genMeta.engine === 'a1111' && (
+                                <div className="rounded-lg border border-border bg-card p-3">
+                                    <div className="mb-1.5 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                                        生成参数(WebUI 内嵌)
+                                        <Button variant="ghost" size="sm" className="ml-auto"
+                                            onClick={() => copy(genMeta.prompt, 'allprompt')}>
+                                            {copied === 'allprompt' ? '✓ 已复制' : '复制全部正向'}
+                                        </Button>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {genMeta.prompt.split(',').map((w: string, i: number) => {
+                                            const t = w.trim();
+                                            if (!t) return null;
+                                            return (
+                                                <button key={i} onClick={() => copy(t, 'p' + i)}
+                                                    className="cursor-pointer rounded-md bg-secondary px-2 py-0.5 text-xs text-foreground transition-colors hover:bg-accent"
+                                                    title="点击复制">
+                                                    {copied === 'p' + i ? '✓' : t}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                    {genMeta.negative && (
+                                        <details className="mt-2">
+                                            <summary className="cursor-pointer text-xs text-muted-foreground">负向提示词({genMeta.negative.split(',').length} 项)</summary>
+                                            <div className="mt-1.5 flex flex-wrap gap-1.5">
+                                                {genMeta.negative.split(',').map((w: string, i: number) => {
+                                                    const t = w.trim();
+                                                    if (!t) return null;
+                                                    return (
+                                                        <button key={i} onClick={() => copy(t, 'n' + i)}
+                                                            className="cursor-pointer rounded-md bg-input/40 px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent">
+                                                            {copied === 'n' + i ? '✓' : t}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </details>
+                                    )}
+                                    {Object.keys(genMeta.params || {}).length > 0 && (
+                                        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 border-t border-border pt-2 text-xs text-muted-foreground">
+                                            {['Model', 'Steps', 'Sampler', 'CFG scale', 'Seed', 'Size', 'Clip skip', 'Model hash'].map((k) =>
+                                                genMeta.params[k] ? <span key={k}>{k}: <span className="text-foreground">{String(genMeta.params[k]).slice(0, 24)}</span></span> : null)}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                            {metaBusy && (
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="size-3.5 animate-spin" />正在读取图片内嵌参数…</div>
+                            )}
+                            {genMeta && !genMeta.ok && !metaBusy && (
+                                <div className="text-xs text-muted-foreground/70">无内嵌生成参数({String(genMeta.error || '').slice(0, 40)})</div>
+                            )}
                             {relModel ? (
                                 <div className="rounded-lg border border-border bg-card p-3">
                                     <div className="mb-1.5 text-xs font-medium text-muted-foreground">关联模型(tag 参考)</div>

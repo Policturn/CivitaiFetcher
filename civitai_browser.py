@@ -538,6 +538,74 @@ def search_images(opts):
             "nextCursor": (data.get("metadata") or {}).get("nextCursor")}
 
 
+def read_image_params(url):
+    """读 Civitai CDN 原图 PNG 头部的内嵌生成信息(WebUI parameters chunk)。
+    Range 拉前 256KB;解析 A1111 格式。返回 {ok, engine, prompt, negative, params, raw}。"""
+    import struct
+    import zlib as _zlib
+    orig = re.sub(r"/(width=[0-9]+|original=[A-Za-z]+)/", "/original=true/", url)
+    resp = cf.SESSION.get(orig, headers={"Range": "bytes=0-262143"}, timeout=40)
+    if not resp.ok or not resp.content.startswith(bytes([0x89]) + b"PNG" + bytes([13, 10, 26, 10])):
+        return {"ok": False, "error": "非 PNG(可能是视频或无信息)"}
+    data = resp.content
+    texts = {}
+    i = 8
+    while i < len(data) - 12:
+        ln = struct.unpack(">I", data[i:i + 4])[0]
+        typ = data[i + 4:i + 8]
+        payload = data[i + 8:i + 8 + ln]
+        if typ == b"tEXt":
+            k, _, v = payload.partition(bytes([0]))
+            texts[k.decode("latin1")] = v.decode("latin1", "replace")
+        elif typ == b"iTXt":
+            k, _, rest = payload.partition(bytes([0]))
+            try:
+                body = rest[2:]
+                if rest[0:1] == bytes([1]):
+                    body = _zlib.decompress(body)
+                parts = body.split(bytes([0]), 2)
+                if len(parts) == 3:
+                    texts[k.decode("latin1")] = parts[2].decode("utf-8", "replace")
+            except Exception:
+                pass
+        elif typ == b"zTXt":
+            k, _, rest = payload.partition(bytes([0]))
+            try:
+                texts[k.decode("latin1")] = _zlib.decompress(rest[1:]).decode("utf-8", "replace")
+            except Exception:
+                pass
+        i += 12 + ln
+        if typ == b"IEND":
+            break
+    raw = texts.get("parameters") or texts.get("Parameters") or ""
+    if not raw:
+        wf = texts.get("workflow") or texts.get("prompt")
+        if wf:
+            return {"ok": True, "engine": "comfyui", "prompt": "", "negative": "",
+                    "params": {}, "raw": wf[:8000]}
+        return {"ok": False, "error": "PNG 内无生成信息"}
+    prompt, negative, params = raw, "", {}
+    NL = chr(10)
+    if NL + "Negative prompt:" in raw:
+        prompt, rest = raw.split(NL + "Negative prompt:", 1)
+        negative, _, tail = rest.partition(NL)
+        raw_params = tail
+    else:
+        lines = raw.split(NL)
+        last = lines[-1]
+        if "Steps:" in last:
+            prompt = NL.join(lines[:-1])
+            raw_params = last
+        else:
+            raw_params = ""
+    for kv in raw_params.split(","):
+        if ":" in kv:
+            k, _, v = kv.partition(":")
+            params[k.strip()] = v.strip()
+    return {"ok": True, "engine": "a1111", "prompt": prompt.strip(),
+            "negative": negative.strip(), "params": params, "raw": raw[:8000]}
+
+
 def check_api_key(api_key, proxy=""):
     """GET /api/v1/me 验证 Key,返回 {ok, username|error}"""
     import requests
