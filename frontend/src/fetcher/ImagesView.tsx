@@ -40,12 +40,14 @@ export default function ImagesView(props: { proxy: string; apiKey: string; onOpe
     const reqSeq = useRef(0);
     const loadedOnce = useRef(false);
     const sentinel = useRef<HTMLDivElement>(null);
+    const scrollBox = useRef<HTMLDivElement>(null);
 
     const load = useCallback(async (cur?: string, replace = false) => {
         if (!api()) { setTimeout(() => load(cur, replace), 300); return; }
         const seq = ++reqSeq.current;
         setLoading(true);
         setError('');
+        if (replace && loadedOnce.current) setItems([]);  // 切换筛选:立即清空+加载提示,反馈明确
         // 瞬时网络错误自动重试(最多2次,间隔1.5s),重试仍失败才显示红条
         for (let attempt = 0; attempt < 3; attempt++) {
             try {
@@ -56,6 +58,7 @@ export default function ImagesView(props: { proxy: string; apiKey: string; onOpe
                 loadedOnce.current = true;
                 setLoading(false);
                 setError('');
+                if (replace) scrollBox.current?.scrollTo({ top: 0 });
                 return;
             } catch (e: any) {
                 if (seq !== reqSeq.current) return;
@@ -149,6 +152,11 @@ export default function ImagesView(props: { proxy: string; apiKey: string; onOpe
                 Civitai 已从公开接口移除图片生成参数(prompt),点击图片可看关联模型的触发词作参考
             </div>
 
+            {loading && !items.length && (
+                <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+                    <Loader2 className="size-4 animate-spin" /> 正在加载图片…
+                </div>
+            )}
             {error && (
                 <div className="flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-400">
                     <span className="min-w-0 flex-1 truncate">{error}</span>
@@ -157,7 +165,7 @@ export default function ImagesView(props: { proxy: string; apiKey: string; onOpe
             )}
 
             {/* 瀑布流 */}
-            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+            <div ref={scrollBox} className="min-h-0 flex-1 overflow-y-auto pr-1">
                 <div className="columns-2 gap-3 xl:columns-3 2xl:columns-4 [&>*]:mb-3">
                     {shown.map((it) => (
                         <button key={it.id} onClick={() => openDetail(it)}
