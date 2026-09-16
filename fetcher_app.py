@@ -61,6 +61,7 @@ def settings_path():
 
 # 冻结环境下把哈希缓存/扫描报告重定向到 exe 旁边(默认落在 _MEIPASS 临时目录会丢)
 cf.HASH_CACHE_FILE = os.path.join(app_dir(), "hash_cache.json")
+cd._load_history_once()  # 路径定向后立即装载下载历史
 
 EVENT_LOG_TAGS = [
     ("没有此模型", "amber"), ("骨架", "amber"),

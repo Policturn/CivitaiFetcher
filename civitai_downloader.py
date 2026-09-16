@@ -51,7 +51,15 @@ def _save_history():
         pass
 
 
-_load_history()
+# 历史加载延迟到运行时:模块加载期 cf.HASH_CACHE_FILE 尚未被 fetcher_app 重定向,
+# exe 环境会读到临时解包目录的空文件(只写不读的根源)
+_history_loaded = {"done": False}
+
+
+def _load_history_once():
+    if not _history_loaded["done"]:
+        _history_loaded["done"] = True
+        _load_history()
 
 
 def _finish(task):
@@ -199,6 +207,7 @@ def retry_download(task_id):
 
 
 def downloads_state():
+    _load_history_once()
     with _DL_STATE["lock"]:
         return {
             "queue": [_public_task(t) for t in _DL_STATE["queue"]],

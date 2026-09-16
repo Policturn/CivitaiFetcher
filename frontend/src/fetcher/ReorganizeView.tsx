@@ -16,15 +16,22 @@ export default function ReorganizeView() {
     const [mappingOpen, setMappingOpen] = useState(false);
 
     useEffect(() => {
-        api()?.reorganize_has_undo?.().then(setCanUndo);
-        api()?.get_category_folders?.().then(setMapping);
-        // 演示模式:打开即展示预填的归类计划
-        api()?.get_initial?.().then((s: any) => {
-            if (s?.demo && s?.demoPlan) {
-                setFolder(s.demoFolder || '');
-                setPlan(s.demoPlan);
-            }
-        }).catch(() => {});
+        let cancelled = false;
+        const boot = () => {
+            const a = api();
+            if (!a) { setTimeout(boot, 120); return; }
+            a.reorganize_has_undo?.().then((v: boolean) => { if (!cancelled) setCanUndo(v); });
+            a.get_category_folders?.().then(setMapping);
+            a.get_initial?.().then((s: any) => {
+                if (cancelled) return;
+                if (s?.demo && s?.demoPlan) {
+                    setFolder(s.demoFolder || '');
+                    setPlan(s.demoPlan);
+                }
+            }).catch(() => {});
+        };
+        boot();
+        return () => { cancelled = true; };
     }, []);
 
     useFeEvent((e) => {
