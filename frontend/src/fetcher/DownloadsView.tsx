@@ -17,6 +17,11 @@ export default function DownloadsView() {
 
     const refresh = () => { api()?.downloads_state?.().then(setState); };
     useEffect(refresh, []);
+    // 轮询兜底:事件通道异常时不至于永远看不到新任务
+    useEffect(() => {
+        const t = window.setInterval(refresh, 2500);
+        return () => window.clearInterval(t);
+    }, []);
 
     useFeEvent((e) => {
         if (e.type === 'downloads') setState(e.state);

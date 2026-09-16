@@ -40,8 +40,8 @@ const LORA_SUB_TABS: Array<[string, string]> = [
     ['objects', '物品'],
 ];
 
-export default function BrowseView(props: { webuiRoot: string; proxy: string; apiKey: string; apiSource?: string; onOpenDownloads: () => void }) {
-    const { webuiRoot, proxy, apiKey, apiSource, onOpenDownloads } = props;
+export default function BrowseView(props: { webuiRoot: string; proxy: string; apiKey: string; apiSource?: string; defaults?: any; onOpenDownloads: () => void }) {
+    const { webuiRoot, proxy, apiKey, apiSource, defaults, onOpenDownloads } = props;
     // 页签与筛选
     const [typeTab, setTypeTab] = useState('all');
     const [query, setQuery] = useState('');
@@ -470,7 +470,7 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
 
             {/* 快捷下载提示 */}
             {toast && (
-                <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-lg border border-border bg-card px-4 py-2 text-xs text-foreground shadow-lg">
+                <div className={`fixed bottom-6 left-1/2 z-50 -translate-x-1/2 max-w-[80vw] truncate rounded-lg border px-4 py-2 text-xs shadow-lg ${toastKind === 'warn' ? 'border-amber-500/40 bg-amber-500/10 text-amber-400' : 'border-border bg-card text-foreground'}`}>
                     {toast}
                 </div>
             )}

@@ -112,11 +112,13 @@ def _pump():
             except queue.Empty:
                 break
         window = _STATE["window"]
-        try:
-            payload = json.dumps(batch, ensure_ascii=False)
-            window.evaluate_js(f"window.__fePushBatch({payload})")
-        except Exception:
-            time.sleep(0.2)
+        payload = json.dumps(batch, ensure_ascii=False)
+        for attempt in range(3):
+            try:
+                window.evaluate_js(f"window.__fePushBatch({payload})")
+                break
+            except Exception:
+                time.sleep(0.3)  # 重试,不丢批
 
 
 class Api:
@@ -137,6 +139,7 @@ class Api:
             "browse": data.get("browse", {}),
             "types": data.get("types", {}),
             "options": data.get("options", {}),
+            "defaults": data.get("defaults", {}),
             "demo": DEMO_MODE,
             **({"demoFolder": r"C:\SD-WebUI\models\Lora(演示)",
                 "demoPlan": demo.preview_reorganize("", fast=True)} if DEMO_MODE else {}),
@@ -329,6 +332,8 @@ def _save_settings(opts):
         old["api_source"] = opts["api_source"]
     if isinstance(opts.get("browse"), dict):
         old.setdefault("browse", {}).update(opts["browse"])
+    if isinstance(opts.get("defaults"), dict):
+        old.setdefault("defaults", {}).update(opts["defaults"])
     for key in ("types", "options"):
         if key in opts:
             old[key] = opts[key]

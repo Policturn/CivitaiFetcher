@@ -3,18 +3,19 @@ import { BarChart3, FolderOpen, Play, Settings, Square } from 'lucide-react';
 import { Select, SelectTrigger, SelectValue, SelectPopup, SelectItem } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogPopup, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { api, pushEvent, useFeEvent, inputCls, CIVITAI_TYPES, TYPE_ZH, BASE_MODELS, SORTS, PERIODS, fmtSize } from './api';
 import BrowseView from './BrowseView';
 import DownloadsView from './DownloadsView';
 import ReorganizeView from './ReorganizeView';
+import SettingsView, { type DownloadDefaults } from './SettingsView';
 
 const NAV_TABS: Array<[string, string]> = [
     ['browse', 'Civitai 浏览'],
     ['scan', '扫描补档'],
     ['downloads', '下载队列'],
     ['reorganize', '整理归类'],
+    ['settings', '设置'],
 ];
 
 // ---------------------------------------------------------------- 后端桥(pywebview)
@@ -91,8 +92,8 @@ export default function App() {
     const [user, setUser] = useState('');
     const [demo, setDemo] = useState(false);
     const [apiSource, setApiSource] = useState('com');
+    const [defaults, setDefaults] = useState<DownloadDefaults>({ dlRoot: '', dlSubfolder: '', dlAutoCategory: true, dlWithExtras: true });
     const demoAutoRan = useRef(false);
-    const [settingsOpen, setSettingsOpen] = useState(false);
     const logBox = useRef<HTMLDivElement>(null);
 
     // 绑定后端事件与初始状态
@@ -127,6 +128,7 @@ export default function App() {
                     if (s) {
                         setDemo(!!s.demo);
                         if (s?.api_source) setApiSource(String(s.api_source));
+                        if (s?.defaults) setDefaults((d) => ({ ...d, ...s.defaults }));
                         if (s?.browse?.view) setView(String(s.browse.view));
                         setWebuiRoot(s.webui_root ?? webuiRoot);
                         setProxy(s.proxy ?? '');
@@ -242,7 +244,7 @@ export default function App() {
                 <div className="flex items-center gap-2">
                     {demo && <span className="rounded bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-500">演示模式 · 离线数据</span>}
                     {user && <span className="text-xs text-emerald-400">已登录 @{user}</span>}
-                    <Button variant="ghost" size="icon-sm" title="设置 / 登录" onClick={() => setSettingsOpen(true)}>
+                    <Button variant="ghost" size="icon-sm" title="设置" onClick={() => setView('settings')}>
                         <Settings />
                     </Button>
                     <span className="h-4 w-px bg-border" />
@@ -366,6 +368,7 @@ export default function App() {
             <div className={cn('flex min-h-0 flex-1 flex-col', view !== 'browse' && 'hidden')}>
                 <BrowseView
                     webuiRoot={webuiRoot} proxy={proxy} apiKey={apiKey} apiSource={apiSource}
+                    defaults={defaults}
                     onOpenDownloads={() => setView('downloads')}
                 />
             </div>
@@ -376,13 +379,18 @@ export default function App() {
                 <ReorganizeView />
             </div>
 
-            {settingsOpen && (
-                <SettingsDialog
-                    proxy={proxy} apiKey={apiKey}
-                    onClose={() => setSettingsOpen(false)}
-                    onSaved={(p, k) => { setProxy(p); setApiKey(k); }}
+            <div className={cn('flex min-h-0 flex-1 flex-col', view !== 'settings' && 'hidden')}>
+                <SettingsView
+                    proxy={proxy} apiKey={apiKey} apiSource={apiSource} webuiRoot={webuiRoot}
+                    defaults={defaults}
+                    onSaved={(patch) => {
+                        if (patch.proxy !== undefined) setProxy(patch.proxy);
+                        if (patch.apiKey !== undefined) setApiKey(patch.apiKey);
+                        if (patch.apiSource !== undefined) setApiSource(patch.apiSource);
+                        if (patch.defaults) setDefaults(patch.defaults);
+                    }}
                 />
-            )}
+            </div>
         </div>
     );
 }
@@ -391,94 +399,3 @@ const SOURCES: Array<[string, string]> = [
     ['com', '官方 civitai.com(需登录看 NSFW)'],
     ['red', '镜像 civitai.red(NSFW 免登录)'],
 ];
-
-function SettingsDialog(props: {
-    proxy: string; apiKey: string;
-    onClose: () => void; onSaved: (proxy: string, apiKey: string) => void;
-}) {
-    const { proxy, apiKey, onClose, onSaved } = props;
-    const [keyInput, setKeyInput] = useState(apiKey);
-    const [proxyInput, setProxyInput] = useState(proxy);
-    const [source, setSource] = useState('com');
-    const [show, setShow] = useState(false);
-    const [result, setResult] = useState('');
-    const [busy, setBusy] = useState('');
-
-    useEffect(() => {
-        api()?.get_initial?.().then((s: any) => { if (s?.api_source) setSource(s.api_source); }).catch(() => {});
-    }, []);
-
-    const verify = async () => {
-        setBusy('verify'); setResult('');
-        try {
-            const r = await api().check_api_key({ apiKey: keyInput.trim(), proxy: proxyInput.trim() });
-            setResult(r?.ok ? `✓ 有效,登录身份 @${r.username}` : `✕ ${r?.error || '验证失败'}`);
-        } catch (e: any) { setResult(`✕ ${String(e)}`); }
-        finally { setBusy(''); }
-    };
-
-    const save = async () => {
-        setBusy('save');
-        try {
-            await api().save_settings({ apiKey: keyInput.trim(), proxy: proxyInput.trim(), api_source: source });
-            onSaved(proxyInput.trim(), keyInput.trim());
-            onClose();
-        } finally { setBusy(''); }
-    };
-
-    return (
-        <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-            <DialogPopup className="max-w-md">
-                <DialogHeader>
-                    <DialogTitle>设置 · Civitai 登录</DialogTitle>
-                </DialogHeader>
-                <div className="flex flex-col gap-4 px-1 pb-1 text-sm">
-                    <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
-                        <span>Civitai API Key<span className="ml-2 opacity-70">站点头像 → Account Settings → API Keys</span></span>
-                        <div className="flex gap-2">
-                            <input
-                                className={`${inputCls} h-9 flex-1 text-sm`}
-                                type={show ? 'text' : 'password'}
-                                value={keyInput}
-                                onChange={(e) => setKeyInput(e.target.value)}
-                                placeholder="粘贴 API Key"
-                            />
-                            <Button variant="ghost" size="sm" onClick={() => setShow((v) => !v)}>{show ? '隐藏' : '显示'}</Button>
-                        </div>
-                    </label>
-                    <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
-                        <span>HTTP 代理<span className="ml-2 opacity-70">留空 = 直连(Clash 关闭时务必留空)</span></span>
-                        <input className={`${inputCls} h-9 text-sm`} value={proxyInput}
-                            onChange={(e) => setProxyInput(e.target.value)} placeholder="http://127.0.0.1:7890" />
-                    </label>
-                    <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
-                        <span>数据源</span>
-                        <Select value={source} onValueChange={(v) => setSource(String(v))}
-                            items={SOURCES.map(([v, l]) => ({ label: l, value: v }))}>
-                            <SelectTrigger size="sm" className="w-full" aria-label="数据源"><SelectValue /></SelectTrigger>
-                            <SelectPopup>
-                                {SOURCES.map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
-                            </SelectPopup>
-                        </Select>
-                    </label>
-                    {result && (
-                        <div className={`rounded-lg px-2.5 py-1.5 text-xs ${result.startsWith('✓') ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>{result}</div>
-                    )}
-                    <div className="rounded-lg bg-background px-2.5 py-2 text-xs leading-5 text-muted-foreground">
-                        登录后可看到未登录时被拦截的模型与下载;镜像源(NSFW 免登录)不会向第三方站发送你的 Key。Key 只保存在本机 gui_settings.json
-                    </div>
-                    <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="sm" disabled={!!busy || !keyInput.trim()} onClick={verify}>
-                            {busy === 'verify' ? '验证中…' : '验证 Key'}
-                        </Button>
-                        <span className="mx-1 h-4 w-px bg-border" />
-                        <Button size="sm" className="border-success bg-success text-success-foreground hover:bg-success/90"
-                            disabled={!!busy} onClick={save}>
-                            {busy === 'save' ? '保存中…' : '保存'}
-                        </Button>
-                    </div>
-                </div>
-            </DialogPopup>
-        </Dialog>
-    );
-}
