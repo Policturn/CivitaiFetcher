@@ -89,17 +89,27 @@ def save_category_folders(mapping):
         json.dump(mapping, f, ensure_ascii=False, indent=1)
 
 
+# 多分类并存时的让位分类:只有它时才用它(概念太泛,服装/角色/画风等更具体)
+CATEGORY_LOW_PRIORITY = {"concept"}
+
+
 def resolve_category(tags, model_type):
     """tags 命中大类表 → (中文文件夹名, 命中标签);未命中 → (英文标签原样, 标签);
-    完全未命中 → (None, None) 由调用方决定留原地或用 type 兜底。"""
+    完全未命中 → (None, None) 由调用方决定留原地或用 type 兜底。
+    优先级:非让位分类按 tags 首个命中;让位分类(概念)仅在无其他分类时生效。"""
     mapping = load_category_folders()
+    fallback = None
     for tag in tags or []:
         key = str(tag).strip().lower()
-        if key in mapping:
-            return mapping[key], tag
-        if key in DEFAULT_CATEGORY_MAP:
-            return DEFAULT_CATEGORY_MAP[key], tag
-    return None, None
+        folder = mapping.get(key) or (DEFAULT_CATEGORY_MAP.get(key) if key in DEFAULT_CATEGORY_MAP else None)
+        if not folder:
+            continue
+        if key in CATEGORY_LOW_PRIORITY:
+            if fallback is None:
+                fallback = (folder, tag)
+            continue
+        return folder, tag
+    return fallback if fallback else (None, None)
 
 
 def _get(url, params=None, api_key=""):
