@@ -51,6 +51,8 @@ DEFAULT_CATEGORY_MAP = {
     "concept": "概念", "celebrity": "名人", "background": "背景", "animal": "动物",
     "vehicle": "载具", "buildings": "建筑", "objects": "物品", "tool": "工具",
     "action": "动作", "assets": "素材",
+    # Civitai 部分模型用单数形态的标签(实测 pose 模型有只带单数的)
+    "pose": "姿势", "object": "物品", "building": "建筑", "asset": "素材",
 }
 # Civitai type → 插件/扫描器 type 键(建档与默认目录映射共用)
 TYPE_TO_CF = {"LORA": "lora", "LoCon": "lora", "DoRA": "lora",
