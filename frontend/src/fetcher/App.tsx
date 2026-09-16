@@ -89,6 +89,7 @@ export default function App() {
     const [status, setStatus] = useState('就绪 — 点击「开始扫描」补全模型信息');
     const [lines, setLines] = useState<Array<{ text: string; tag?: string }>>([]);
     const [view, setView] = useState('browse'); // 浏览为核心功能,默认页
+    const [dlCount, setDlCount] = useState(0);
     const [user, setUser] = useState('');
     const [demo, setDemo] = useState(false);
     const [apiSource, setApiSource] = useState('com');
@@ -153,6 +154,19 @@ export default function App() {
     useEffect(() => {
         logBox.current?.scrollTo({ top: logBox.current.scrollHeight });
     }, [lines]);
+
+    // 下载数量徽标:队列 + 进行中;事件驱动 + 初始拉取
+    useFeEvent((e) => {
+        if (e.type === 'downloads' && e.state) {
+            setDlCount((e.state.queue || []).length + (e.state.active ? 1 : 0));
+        }
+    });
+    useEffect(() => {
+        if (!ready || !api()) return;
+        api().downloads_state?.().then((st: any) => {
+            if (st) setDlCount((st.queue || []).length + (st.active ? 1 : 0));
+        }).catch(() => {});
+    }, [ready]);
 
     // 页签记忆:变更即存,重开恢复
     useEffect(() => {
@@ -231,13 +245,18 @@ export default function App() {
                             key={v}
                             onClick={() => setView(v)}
                             className={cn(
-                                'cursor-pointer rounded-md px-3 py-1.5 text-sm transition-colors',
+                                'flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors',
                                 view === v
                                     ? 'bg-accent font-medium text-foreground'
                                     : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
                             )}
                         >
                             {label}
+                            {v === 'downloads' && dlCount > 0 && (
+                                <span className="rounded-full bg-emerald-500 px-1.5 py-px text-[10px] font-semibold leading-4 text-emerald-950">
+                                    {dlCount}
+                                </span>
+                            )}
                         </button>
                     ))}
                 </div>

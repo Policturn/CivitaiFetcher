@@ -82,11 +82,16 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [items]);
 
-    // 本地已入库索引(弱化"已下载"卡片用)
+    // 本地已入库索引(弱化"已下载"卡片用)——桥就绪轮询,挂载可能早于注入
     const refreshLocalIdx = useCallback((refresh = false) => {
-        api()?.local_library_index?.({ webuiRoot, refresh })
-            .then((d: any) => setLocalIdx({ modelIds: new Set<string>(d.modelIds), versionIds: new Set<string>(d.versionIds) }))
-            .catch(() => {});
+        const pull = () => {
+            const a = api();
+            if (!a) { setTimeout(pull, 150); return; }
+            a.local_library_index?.({ webuiRoot, refresh })
+                .then((d: any) => setLocalIdx({ modelIds: new Set<string>(d.modelIds), versionIds: new Set<string>(d.versionIds) }))
+                .catch(() => { setTimeout(pull, 400); });
+        };
+        pull();
     }, [webuiRoot]);
     useEffect(() => { refreshLocalIdx(); }, [refreshLocalIdx]);
     // 下载完成 → 增量并入索引(不做全库重扫,过载源头之一)
