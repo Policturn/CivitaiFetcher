@@ -111,21 +111,37 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
     const isDownloaded = (it: any) =>
         !!localIdx && (localIdx.modelIds.has(String(it.id)) || localIdx.versionIds.has(String(it.version?.id)));
 
-    // 卡片悬浮:一键下载该版本(默认参数:模型库类型目录 + 大类归类)
+    // 卡片悬浮:一键下载 —— 用设置的默认位置;版本按当前筛选匹配(基础模型优先)
     const [toast, setToast] = useState('');
+    const [toastKind, setToastKind] = useState<'ok' | 'warn'>('ok');
     const toastTimer = useRef<number | null>(null);
-    const quickDownload = (it: any) => {
-        const v = it?.version;
-        if (!v?.id || !api()) return;
-        api().enqueue_download({
-            modelId: it.id, versionId: v.id,
-            targetRoot: webuiRoot ? `${webuiRoot}\\models` : '',
-            subfolder: '', autoCategory: true, withExtras: true,
-            apiKey, proxy,
-        });
-        setToast(`已加入下载队列:${it.name}`);
+    const showToast = (msg: string, kind: 'ok' | 'warn' = 'ok') => {
+        setToast(msg);
+        setToastKind(kind);
         if (toastTimer.current) window.clearTimeout(toastTimer.current);
-        toastTimer.current = window.setTimeout(() => setToast(''), 2500);
+        toastTimer.current = window.setTimeout(() => setToast(''), 3200);
+    };
+    const quickDownload = async (it: any) => {
+        if (!api()) return;
+        try {
+            // 拉详情挑符合当前筛选的版本(底模匹配优先,退回搜索词,再退回最新)
+            const d = await api().get_model_detail({ modelId: it.id, apiKey, proxy });
+            const vs = d?.versions || [];
+            if (!vs.length) { showToast(`${it.name}:无可用版本`, 'warn'); return; }
+            const idx = pickDefaultVersion(d, baseModels, query);
+            const v = vs[idx];
+            const dl = defaults || {};
+            const root = dl.dlRoot || (webuiRoot ? `${webuiRoot}\\models` : '');
+            await api().enqueue_download({
+                modelId: it.id, versionId: v.id,
+                targetRoot: root, subfolder: dl.dlSubfolder || '',
+                autoCategory: dl.dlAutoCategory !== false, withExtras: dl.dlWithExtras !== false,
+                apiKey, proxy,
+            });
+            showToast(`已入队:${it.name} · ${v.name || '?'}${v.baseModel ? `(${v.baseModel})` : ''}`);
+        } catch (e: any) {
+            showToast(`下载失败:${String(e?.message || e).slice(0, 80)}`, 'warn');
+        }
     };
 
     const toggleSection = (key: string) => setOpenSections((s) => ({ ...s, [key]: !s[key] }));
