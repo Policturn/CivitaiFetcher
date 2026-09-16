@@ -737,12 +737,18 @@ def run_scan(args):
             out("⏹ 已停止(本次进度已记入报告)")
             break
         done += 1
-        report_progress(done, len(models))
-        out(f"[{done}/{len(models)}] {model_type}")
+        # 跳过的模型逐个打日志会在全库已缓存时 1 秒灌入近千行,前端渲染雪崩;
+        # 静默跳过,仅对有动作的模型打行,进度事件每 20 个发一次
+        if done % 20 == 0 or done == len(models):
+            report_progress(done, len(models))
         try:
+            before = len(report)
             report.append(scan_one(filepath, model_type, args, names))
+            entry = report[-1]
+            if entry.get("info") != "skip":
+                out(f"[{done}/{len(models)}] {model_type}")
         except Exception as e:  # 单模型失败不断整个扫描
-            out(f"    异常: {e!r}")
+            out(f"[{done}/{len(models)}] {model_type} 异常: {e!r}")
             report.append({"path": filepath, "type": model_type,
                            "info": "exception", "preview": "-", "error": repr(e)})
 
