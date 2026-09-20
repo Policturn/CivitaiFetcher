@@ -22,7 +22,7 @@ BUILTIN_BASES = {
             "good": ["illustrious|instill|awpainting|animagine|pvc|ill-v?\\d|ill v\\d"],
             "reduced": ["noob|nai[\\s-]?xl"],
             "weak": ["sdxl|sd ?xl|base ?1\\.0|autism|urn:air|juggler|realvis"],
-            "incompat": ["pony"],
+            "incompat": ["pony", "anima(?!gine)|zimage|krea|hidream|qwen|mistral|lumina|chroma|omnigen"],
         },
     },
     "ill_base": {
@@ -32,7 +32,7 @@ BUILTIN_BASES = {
             "good": ["wai.*ill|instill|awpainting|animagine|pvc"],
             "reduced": ["noob|nai[\\s-]?xl"],
             "weak": ["sdxl|sd ?xl|base ?1\\.0|autism|urn:air"],
-            "incompat": ["pony"],
+            "incompat": ["pony", "anima(?!gine)|zimage|krea|hidream|qwen|mistral|lumina|chroma|omnigen"],
         },
     },
     "noob_eps": {
@@ -52,7 +52,7 @@ BUILTIN_BASES = {
             "good": ["illustrious|wai.*ill|instill|awpainting|pvc"],
             "reduced": ["eps|epsilon"],
             "weak": ["sdxl|sd ?xl|base ?1\\.0|autism|urn:air"],
-            "incompat": ["pony"],
+            "incompat": ["pony", "anima(?!gine)|zimage|krea|hidream|qwen|mistral|lumina|chroma|omnigen"],
         },
     },
     "pony_v6": {
@@ -62,7 +62,7 @@ BUILTIN_BASES = {
             "good": ["autism"],
             "reduced": ["sdxl|sd ?xl|base ?1\\.0"],
             "weak": ["illustrious|noob|nai[\\s-]?xl|animagine"],
-            "incompat": ["illustrious|noob|nai[\\s-]?xl|instill|awpainting"],
+            "incompat": ["illustrious|noob|nai[\\s-]?xl|instill|awpainting", "anima(?!gine)|zimage|krea|hidream|qwen|mistral|lumina|chroma|omnigen"],
         },
     },
 }
@@ -73,22 +73,27 @@ LEVEL_ZH = {
 }
 
 
+RULES_VERSION = 2  # 递增触发用户侧 compat_rules.json 自动升级到新内置规则
+
+
 def _rules_path():
     return os.path.join(os.path.dirname(cf.HASH_CACHE_FILE), "compat_rules.json")
 
 
 def load_bases():
-    """用户可编辑副本优先;首次运行从内置生成"""
+    """用户副本优先;无文件或版本落后于内置时重写内置(规则升级)"""
     try:
         with io.open(_rules_path(), "r", encoding="utf-8") as f:
             data = json.load(f)
-        if isinstance(data, dict) and data:
+        if isinstance(data, dict) and data and data.get("_version", 0) >= RULES_VERSION:
             return data
     except (OSError, ValueError):
         pass
+    out = dict(BUILTIN_BASES)
+    out["_version"] = RULES_VERSION
     try:
         with io.open(_rules_path(), "w", encoding="utf-8") as f:
-            json.dump(BUILTIN_BASES, f, ensure_ascii=False, indent=1)
+            json.dump(out, f, ensure_ascii=False, indent=1)
     except OSError:
         pass
     return BUILTIN_BASES

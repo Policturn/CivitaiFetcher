@@ -43,7 +43,8 @@ PERIODS = ["AllTime", "Year", "Month", "Week", "Day"]
 TYPES = ["Checkpoint", "TextualInversion", "Hypernetwork", "LORA", "LoCon",
          "DoRA", "VAE", "Upscaler", "MotionModel", "Controlnet"]
 BASE_MODELS = ["SD 1.5", "SDXL 1.0", "Pony", "Illustrious", "NoobAI",
-               "SD 3.5", "SD 3.5 Medium", "SD 3.5 Large", "Flux.1 D", "Flux.1 S"]
+               "SD 3.5", "SD 3.5 Medium", "SD 3.5 Large", "Flux.1 D", "Flux.1 S",
+               "Anima", "ZImageTurbo", "Krea 2", "HiDream", "Qwen"]
 
 # 大类 → 默认中文文件夹名(用户可在 category_folders.json 改)
 DEFAULT_CATEGORY_MAP = {
