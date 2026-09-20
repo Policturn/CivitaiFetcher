@@ -355,36 +355,52 @@ class Api:
         return True
 
 
+_SETTINGS_LOCK = threading.Lock()
+
+
+def _read_settings_file():
+    """直接读盘上的完整设置(不精简);失败返回 None(绝不以空基线覆盖)"""
+    try:
+        with open(settings_path(), "r", encoding="utf-8") as f:
+            return json.load(f) or {}
+    except (OSError, ValueError):
+        return None
+
+
 def _save_settings(opts):
-    try:
-        api = Api()
-        old = api.get_initial()
-    except Exception:
-        old = {}
-    old.update({
-        "webui_root": opts.get("webui_root", old.get("webui_root")),
-        "proxy": opts.get("proxy", old.get("proxy", "")),
-        "api_key": opts.get("api_key", old.get("api_key", "")),
-    })
-    if opts.get("api_source") in ("com", "red"):
-        old["api_source"] = opts["api_source"]
-    if isinstance(opts.get("browse"), dict):
-        old.setdefault("browse", {}).update(opts["browse"])
-    if isinstance(opts.get("defaults"), dict):
-        old.setdefault("defaults", {}).update(opts["defaults"])
-    if isinstance(opts.get("pinned_folders"), dict):
-        # None/空串 = 解除绑定
-        pf = {k: v for k, v in opts["pinned_folders"].items() if v}
-        old["pinned_folders"] = pf
-    # types/options 只接受 dict(扫描参数里的 types 是逗号串,严禁入设置污染勾选状态)
-    for key in ("types", "options"):
-        if isinstance(opts.get(key), dict):
-            old[key] = opts[key]
-    try:
-        with open(settings_path(), "w", encoding="utf-8") as f:
-            json.dump(old, f, ensure_ascii=False, indent=1)
-    except OSError:
-        pass
+    # 串行化 + 原子写 + 禁止空基线覆盖:
+    # 多视图并发"读-合并-写回"会互相踩踏(读到半写文件→解析失败→空基线
+    # 覆写全量,曾致 browse 主筛选整体丢失)
+    with _SETTINGS_LOCK:
+        old = _read_settings_file()
+        if old is None:
+            return  # 读盘失败:宁可放弃本次写入,保住盘上现状
+        old.update({
+            "webui_root": opts.get("webui_root", old.get("webui_root")),
+            "proxy": opts.get("proxy", old.get("proxy", "")),
+            "api_key": opts.get("api_key", old.get("api_key", "")),
+        })
+        if opts.get("api_source") in ("com", "red"):
+            old["api_source"] = opts["api_source"]
+        if isinstance(opts.get("browse"), dict):
+            old.setdefault("browse", {}).update(opts["browse"])
+        if isinstance(opts.get("defaults"), dict):
+            old.setdefault("defaults", {}).update(opts["defaults"])
+        if isinstance(opts.get("pinned_folders"), dict):
+            # None/空串 = 解除绑定
+            pf = {k: v for k, v in opts["pinned_folders"].items() if v}
+            old["pinned_folders"] = pf
+        # types/options 只接受 dict(扫描参数里的 types 是逗号串,严禁入设置污染勾选状态)
+        for key in ("types", "options"):
+            if isinstance(opts.get(key), dict):
+                old[key] = opts[key]
+        try:
+            tmp = settings_path() + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(old, f, ensure_ascii=False, indent=1)
+            os.replace(tmp, settings_path())
+        except OSError:
+            pass
 
 
 _ASSET_PORT = {"port": 0}
@@ -477,7 +493,7 @@ def main():
     width, height = int(sw * 0.85), int(sh * 0.85)
     port = _start_asset_server()
     page = f"http://127.0.0.1:{port}/fetcher.html" if port else index  # 服务起不来退回 file://
-    _STATE["window"] = webview.create_window(
+    window = webview.create_window(
         "非猫 Civitai 信息补全器" + ("(演示版)" if DEMO_MODE else ""),
         url=page,
         js_api=api,
@@ -485,6 +501,23 @@ def main():
         width=width, height=height,
         min_size=(980, 640),
     )
+    # 关窗兜底:异步保存调用可能还在飞行中被窗口销毁吞掉,
+    # closing 时由 Python 同步拉取页面最新筛选状态写盘(消灭丢失窗口期)
+    def _flush_state_on_close():
+        try:
+            state = window.evaluate_js("window.__feState || null")
+            if isinstance(state, dict):
+                if isinstance(state.get("browse"), dict):
+                    _save_settings({"browse": state["browse"]})
+                if isinstance(state.get("images"), dict):
+                    _save_settings({"browse": {"images": state["images"]}})
+                if isinstance(state.get("compat"), dict):
+                    _save_settings({"browse": {"compat": state["compat"]}})
+        except Exception:
+            pass
+        return True  # 放行关闭
+
+    window.events.closing += _flush_state_on_close
     webview.start()
 
 
