@@ -101,29 +101,47 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
     const handledDoneIds = useRef<Set<string>>(new Set());
     useFeEvent((e) => {
         if (e.type !== 'download_progress' && e.type !== 'downloads') return;
-        // downloads 快照只取 queue+active(历史 200 条全量灌状态是卡顿源头;
-        // 已下载的权威判定在 localIdx 索引,历史无需反复灌入)
-        const tasks: any[] = e.type === 'download_progress'
-            ? (e.task ? [e.task] : [])
-            : [...(e.state?.queue || []), e.state?.active].filter(Boolean);
-        if (!tasks.length) return;
+        // downloads 快照:queue/active 驱动进度条;done 列表只用于捕捉"新完成的"
+        // (任务完成瞬间已移出 active,不扫 done 会漏掉;handledDoneIds 去重,
+        // 200 条历史每个 id 只处理一次,不会重演全量灌状态)
+        let live: any[] = [];
+        let finished: any[] = [];
+        if (e.type === 'download_progress') {
+            live = e.task ? [e.task] : [];
+        } else {
+            live = [...(e.state?.queue || []), e.state?.active].filter(Boolean);
+            finished = (e.state?.done || []);
+        }
+        if (!live.length && !finished.length) return;
 
         const dlPatch: Record<string, { percent: number; status: string }> = {};
         const newDone: any[] = [];
-        for (const t of tasks) {
-            if (!t || (!t.versionId && !t.modelId)) continue;
-            const st = { percent: t.percent || 0, status: t.status || '' };
-            if (t.versionId) dlPatch[String(t.versionId)] = st;
-            if (t.modelId) dlPatch['m' + String(t.modelId)] = st;
+        const absorb = (t: any, forDisplay: boolean) => {
+            if (!t || (!t.versionId && !t.modelId)) return;
+            if (forDisplay) {
+                const st = { percent: t.percent || 0, status: t.status || '' };
+                if (t.versionId) dlPatch[String(t.versionId)] = st;
+                if (t.modelId) dlPatch['m' + String(t.modelId)] = st;
+            }
             if (t.status === 'done' && t.id && !handledDoneIds.current.has(t.id)) {
                 handledDoneIds.current.add(t.id);
                 newDone.push(t);
             }
-        }
+        };
+        for (const t of live) absorb(t, true);
+        for (const t of finished) absorb(t, false);  // 历史不灌进度状态,只挑新完成
+
         if (Object.keys(dlPatch).length) {
             setDlMap((prev) => ({ ...prev, ...dlPatch }));
         }
         if (newDone.length) {
+            // 新完成:卡片清除下载态 + 并入已下载索引
+            for (const t of newDone) {
+                const st = { percent: 100, status: 'done' };
+                if (t.versionId) dlPatch[String(t.versionId)] = st;
+                if (t.modelId) dlPatch['m' + String(t.modelId)] = st;
+            }
+            setDlMap((prev) => ({ ...prev, ...dlPatch }));
             setLocalIdx((p2) => {
                 const mIds = new Set(p2?.modelIds || []), vIds = new Set(p2?.versionIds || []);
                 for (const t of newDone) {
