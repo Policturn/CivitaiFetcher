@@ -27,6 +27,35 @@ export default function ReorganizeView(props: { webuiRoot?: string }) {
     const [quarantine, setQuarantine] = useState('');
     const [compatRoot, setCompatRoot] = useState('');
 
+    // 兼容区设置持久化(基准/等级/目录/待测夹)
+    const [compatInit, setCompatInit] = useState(false);
+    useEffect(() => {
+        let cancelled = false;
+        const restore = () => {
+            const a = api();
+            if (!a) { setTimeout(restore, 120); return; }
+            a.get_initial?.().then((res: any) => {
+                if (cancelled) return;
+                const c = (res?.browse || {}).compat || {};
+                if (c.baseKey) setBaseKey(c.baseKey);
+                if (c.incompat !== undefined) setLvIncompat(!!c.incompat);
+                if (c.weak !== undefined) setLvWeak(!!c.weak);
+                if (c.reduced !== undefined) setLvReduced(!!c.reduced);
+                if (c.mixed !== undefined) setLvMixed(!!c.mixed);
+                if (c.compatRoot) setCompatRoot(c.compatRoot);
+                if (c.quarantine) setQuarantine(c.quarantine);
+            }).catch(() => { if (!cancelled) setTimeout(restore, 300); })
+              .finally(() => { if (!cancelled) setCompatInit(true); });
+        };
+        restore();
+        return () => { cancelled = true; };
+    }, []);
+    useEffect(() => {
+        if (compatInit && api()) {
+            api().save_browse?.({ compat: { baseKey, incompat: lvIncompat, weak: lvWeak, reduced: lvReduced, mixed: lvMixed, compatRoot, quarantine } });
+        }
+    }, [compatInit, baseKey, lvIncompat, lvWeak, lvReduced, lvMixed, compatRoot, quarantine]);
+
     useEffect(() => {
         let cancelled = false;
         const boot = () => {

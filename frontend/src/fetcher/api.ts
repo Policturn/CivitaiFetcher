@@ -30,7 +30,8 @@ export const TYPE_ZH: Record<string, string> = {
 };
 
 export const BASE_MODELS = ['SD 1.5', 'SDXL 1.0', 'Pony', 'Illustrious', 'NoobAI',
-    'SD 3.5', 'SD 3.5 Medium', 'SD 3.5 Large', 'Flux.1 D', 'Flux.1 S'];
+    'SD 3.5', 'SD 3.5 Medium', 'SD 3.5 Large', 'Flux.1 D', 'Flux.1 S',
+    'Anima', 'ZImageTurbo', 'Krea 2', 'HiDream', 'Qwen'];
 
 export const SORTS: Array<[string, string]> = [
     ['Most Downloaded', '下载最多'], ['Highest Rated', '评分最高'],

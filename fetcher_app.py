@@ -320,7 +320,9 @@ class Api:
     def get_compat_bases(self):
         import civitai_compat as cx
         bases = cx.load_bases()
-        return [{"key": k, "label": v.get("label") or k} for k, v in bases.items()]
+        # _version 等元数据键(非 dict)不是基准,跳过
+        return [{"key": k, "label": v.get("label") or k}
+                for k, v in bases.items() if isinstance(v, dict)]
 
     def preview_reorganize_pinned(self, opts):
         return cr.preview_reorganize_pinned()

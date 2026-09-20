@@ -39,6 +39,30 @@ export default function ImagesView(props: { proxy: string; apiKey: string; onOpe
     const [copied, setCopied] = useState('');
     const reqSeq = useRef(0);
     const loadedOnce = useRef(false);
+    const [initDone, setInitDone] = useState(false);
+    // 图片页筛选持久化(桥就绪轮询恢复 + 变更即存,存 settings.browse.images)
+    useEffect(() => {
+        let cancelled = false;
+        const restore = () => {
+            const a = api();
+            if (!a) { setTimeout(restore, 120); return; }
+            a.get_initial?.().then((res: any) => {
+                if (cancelled) return;
+                const b = (res?.browse || {}).images || {};
+                if (b.sort) setSort(b.sort);
+                if (b.period) setPeriod(b.period);
+                if (b.hideNsfw !== undefined) setHideNsfw(!!b.hideNsfw);
+            }).catch(() => { if (!cancelled) setTimeout(restore, 300); })
+              .finally(() => { if (!cancelled) setInitDone(true); });
+        };
+        restore();
+        return () => { cancelled = true; };
+    }, []);
+    useEffect(() => {
+        if (initDone && api()) {
+            api().save_browse?.({ images: { sort, period, hideNsfw } });
+        }
+    }, [initDone, sort, period, hideNsfw]);
     const sentinel = useRef<HTMLDivElement>(null);
     const scrollBox = useRef<HTMLDivElement>(null);
 
