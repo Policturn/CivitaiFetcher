@@ -96,36 +96,42 @@ export default function BrowseView(props: { webuiRoot: string; proxy: string; ap
     }, [webuiRoot]);
     useEffect(() => { refreshLocalIdx(); }, [refreshLocalIdx]);
     // 下载实时状态:进度条驱动(浏览卡片 + 完成转已下载)
+    // 注意:绝不把 setLocalIdx 嵌在 setDlMap updater 里——React 18 并发模式下
+    // updater 可能被丢弃/重放,嵌套副作用会跟着丢(曾致已下载标志/进度条在高任务量下消失)
+    const handledDoneIds = useRef<Set<string>>(new Set());
     useFeEvent((e) => {
-        const applyTasks = (tasks: any[]) => {
-            if (!tasks.length) return;
-            setDlMap((prev) => {
-                const next = { ...prev };
-                let doneOk: any[] = [];
-                for (const t of tasks) {
-                    if (!t || (!t.versionId && !t.modelId)) continue;
-                    const st = { percent: t.percent || 0, status: t.status || '' };
-                    if (t.versionId) next[String(t.versionId)] = st;
-                    if (t.modelId) next['m' + String(t.modelId)] = st;
-                    if (t.status === 'done') doneOk.push(t);
+        if (e.type !== 'download_progress' && e.type !== 'downloads') return;
+        // downloads 快照只取 queue+active(历史 200 条全量灌状态是卡顿源头;
+        // 已下载的权威判定在 localIdx 索引,历史无需反复灌入)
+        const tasks: any[] = e.type === 'download_progress'
+            ? (e.task ? [e.task] : [])
+            : [...(e.state?.queue || []), e.state?.active].filter(Boolean);
+        if (!tasks.length) return;
+
+        const dlPatch: Record<string, { percent: number; status: string }> = {};
+        const newDone: any[] = [];
+        for (const t of tasks) {
+            if (!t || (!t.versionId && !t.modelId)) continue;
+            const st = { percent: t.percent || 0, status: t.status || '' };
+            if (t.versionId) dlPatch[String(t.versionId)] = st;
+            if (t.modelId) dlPatch['m' + String(t.modelId)] = st;
+            if (t.status === 'done' && t.id && !handledDoneIds.current.has(t.id)) {
+                handledDoneIds.current.add(t.id);
+                newDone.push(t);
+            }
+        }
+        if (Object.keys(dlPatch).length) {
+            setDlMap((prev) => ({ ...prev, ...dlPatch }));
+        }
+        if (newDone.length) {
+            setLocalIdx((p2) => {
+                const mIds = new Set(p2?.modelIds || []), vIds = new Set(p2?.versionIds || []);
+                for (const t of newDone) {
+                    if (t.modelId) mIds.add(String(t.modelId));
+                    if (t.versionId) vIds.add(String(t.versionId));
                 }
-                if (doneOk.length) {
-                    // 完成即并入已下载索引
-                    setLocalIdx((p2) => {
-                        const mIds = new Set(p2?.modelIds || []), vIds = new Set(p2?.versionIds || []);
-                        for (const t of doneOk) {
-                            if (t.modelId) mIds.add(String(t.modelId));
-                            if (t.versionId) vIds.add(String(t.versionId));
-                        }
-                        return { modelIds: mIds, versionIds: vIds };
-                    });
-                }
-                return next;
+                return { modelIds: mIds, versionIds: vIds };
             });
-        };
-        if (e.type === 'download_progress' && e.task) applyTasks([e.task]);
-        else if (e.type === 'downloads' && e.state) {
-            applyTasks([...(e.state.queue || []), e.state.active, ...(e.state.done || [])].filter(Boolean));
         }
     });
     // 后台补齐的缩略图 → 增量点亮对应卡片
