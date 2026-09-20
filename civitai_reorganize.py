@@ -153,7 +153,12 @@ def scan_by_compat(base_key, levels, scan_root, target_folder):
     wanted = [lv for lv in levels if lv in cx.LEVEL_ZH]
     moves = []
     counts = {"moves": 0, "excluded_skeleton": 0, "excluded_unknown": 0, "by_level": {}}
-    for dp, _, fns in os.walk(scan_root):
+    # 待测文件夹嵌在扫描目录内时,整棵跳过(否则上次移入的会被重复扫描/移动自冲突)
+    target_real = os.path.realpath(target_folder)
+    for dp, dirs, fns in os.walk(scan_root):
+        dirs[:] = [d for d in dirs
+                   if not os.path.realpath(os.path.join(dp, d)).startswith(target_real + os.sep)
+                   and os.path.realpath(os.path.join(dp, d)) != target_real]
         for fn in fns:
             if os.path.splitext(fn)[1].lower() not in MODEL_EXTS:
                 continue
